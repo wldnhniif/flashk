@@ -48,8 +48,7 @@ try:
     print(f"Initializing Supabase client with URL: {supabase_url}")
     
     # Create Supabase client with minimal configuration
-    from supabase import Client, create_client
-    supabase: Client = create_client(
+    supabase = create_client(
         os.getenv('SUPABASE_URL'),
         os.getenv('SUPABASE_KEY')
     )
@@ -58,6 +57,7 @@ try:
     try:
         test_response = supabase.table('users').select("count").execute()
         print("Supabase connection test successful")
+        print(f"Connection test response: {test_response}")
     except Exception as test_error:
         print(f"Connection test failed: {str(test_error)}")
         # Don't raise the error, just log it
@@ -65,8 +65,7 @@ try:
     
 except Exception as e:
     print(f"Error initializing Supabase client: {str(e)}")
-    # Don't exit, just log the error
-    pass
+    supabase = None  # Set to None so we can check if initialization failed
 
 # Enable security headers with Talisman
 talisman = Talisman(
@@ -290,7 +289,7 @@ def register():
         # Check if Supabase client is initialized
         if not supabase:
             print("Supabase client not initialized")
-            return jsonify({"error": "Database connection error"}), 500
+            return jsonify({"error": "Database connection error. Please try again later."}), 500
 
         data = request.get_json()
         if not data:
@@ -300,7 +299,7 @@ def register():
         username = data.get('username', '').strip()
         password = data.get('password', '')
         
-        print(f"Registration attempt for username: {username}")  # Debug log
+        print(f"Registration attempt for username: {username}")
         
         # Validate input
         if not username or not password:
@@ -312,42 +311,33 @@ def register():
             print("Invalid username length")
             return jsonify({"error": "Username must be between 3 and 50 characters"}), 400
         
-        # Check if username exists
         try:
-            print("Checking if username exists")  # Debug log
+            # Check if username exists
+            print(f"Checking if username exists: {username}")
             existing_user = supabase.table('users').select("*").eq('username', username).execute()
-            print(f"Existing user check response: {existing_user}")  # Debug log
+            print(f"Username check response: {existing_user}")
             
             if existing_user.data:
                 print("Username already exists")
                 return jsonify({"error": "Username already exists"}), 409
-                
-        except Exception as e:
-            print(f"Error checking username: {str(e)}")
-            return jsonify({"error": "Error checking username availability"}), 500
-        
-        try:
-            print("Creating user in database")  # Debug log
             
-            # Prepare user data - match the exact column names in your table
+            # Create user
+            print("Creating new user")
             user_data = {
                 'username': username,
                 'password': password,
                 'is_admin': False
-                # created_at will be set automatically by the default value
             }
-            print(f"User data to insert: {user_data}")  # Debug log
             
-            # Insert into Supabase
             response = supabase.table('users').insert(user_data).execute()
-            print(f"Supabase insert response: {response}")  # Debug log
+            print(f"User creation response: {response}")
             
             if not response.data:
                 print("Failed to create user - no data in response")
                 return jsonify({"error": "Failed to create user"}), 500
             
             user = response.data[0]
-            print(f"User created successfully: {user}")  # Debug log
+            print(f"User created successfully: {user}")
             
             # Create access token
             access_token = create_access_token(
@@ -366,12 +356,12 @@ def register():
             }), 201
             
         except Exception as e:
-            print(f"Error creating user: {str(e)}")
-            return jsonify({"error": f"Failed to create user: {str(e)}"}), 500
+            print(f"Database operation error: {str(e)}")
+            return jsonify({"error": "Database error occurred"}), 500
             
     except Exception as e:
         print(f"Registration error: {str(e)}")
-        return jsonify({"error": f"An error occurred during registration: {str(e)}"}), 500
+        return jsonify({"error": "An error occurred during registration"}), 500
 
 @app.route('/api/login', methods=['POST'])
 def login():
