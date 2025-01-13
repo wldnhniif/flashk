@@ -24,14 +24,30 @@ export default function LoginPage() {
         toast.success('Login successful!');
         router.push('/dashboard');
       } else {
+        console.log('Starting registration process...');
         await register(username, password);
+        console.log('Registration completed successfully');
         toast.success('Registration successful! Please login.');
         setIsLogin(true);
         setUsername('');
         setPassword('');
       }
     } catch (error) {
-      toast.error(typeof error === 'string' ? error : 'Authentication failed. Please try again.');
+      console.error('Form submission error:', error);
+      let errorMessage = 'Authentication failed. Please try again.';
+      
+      if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error?.error) {
+        errorMessage = error.error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
+      console.log('Displaying error:', errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
