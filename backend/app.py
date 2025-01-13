@@ -54,15 +54,15 @@ try:
         
     print(f"Initializing Supabase client with URL: {supabase_url}")
     
+    # Import and initialize Supabase client
+    from supabase import create_client, Client
+    
     # Initialize with minimal configuration
-    supabase: Client = create_client(
-        supabase_url,
-        supabase_key
-    )
+    supabase = create_client(supabase_url, supabase_key)
     
     # Test the connection with a simple query
     try:
-        test_response = supabase.table('users').select("*").limit(1).execute()
+        test_response = supabase.from_('users').select("*").limit(1).execute()
         print("Supabase connection successful")
         print(f"Test query response: {test_response}")
     except Exception as test_error:
@@ -216,13 +216,13 @@ def create_user(username, password, is_admin=False):
         'is_admin': is_admin,
         'created_at': datetime.now(timezone.utc).isoformat()
     }
-    return supabase.table('users').insert(data).execute()
+    return supabase.from_('users').insert(data).execute()
 
 def get_user_by_username(username):
-    return supabase.table('users').select('*').eq('username', username).execute()
+    return supabase.from_('users').select('*').eq('username', username).execute()
 
 def get_user_by_id(user_id):
-    return supabase.table('users').select('*').eq('id', user_id).execute()
+    return supabase.from_('users').select('*').eq('id', user_id).execute()
 
 def create_product(name, price, image_url, user_id):
     data = {
@@ -231,16 +231,16 @@ def create_product(name, price, image_url, user_id):
         'image_url': image_url,
         'user_id': user_id
     }
-    return supabase.table('products').insert(data).execute()
+    return supabase.from_('products').insert(data).execute()
 
 def get_products_by_user(user_id):
-    return supabase.table('products').select('*').eq('user_id', user_id).execute()
+    return supabase.from_('products').select('*').eq('user_id', user_id).execute()
 
 def update_product(product_id, data):
-    return supabase.table('products').update(data).eq('id', product_id).execute()
+    return supabase.from_('products').update(data).eq('id', product_id).execute()
 
 def delete_product(product_id):
-    return supabase.table('products').delete().eq('id', product_id).execute()
+    return supabase.from_('products').delete().eq('id', product_id).execute()
 
 # Admin middleware
 def admin_required():
@@ -325,7 +325,7 @@ def register():
         try:
             # Check if username exists
             print(f"Checking if username exists: {username}")
-            existing_user = supabase.table('users').select("*").eq('username', username).execute()
+            existing_user = supabase.from_('users').select("*").eq('username', username).execute()
             print(f"Username check response: {existing_user}")
             
             if existing_user.data:
@@ -342,7 +342,7 @@ def register():
                 'created_at': datetime.now(timezone.utc).isoformat()
             }
             
-            response = supabase.table('users').insert(user_data).execute()
+            response = supabase.from_('users').insert(user_data).execute()
             print(f"User creation response: {response}")
             
             if not response.data:
@@ -416,7 +416,7 @@ def login():
             
         try:
             print("Querying Supabase for user")  # Debug log
-            response = supabase.table('users').select("*").eq('username', username).execute()
+            response = supabase.from_('users').select("*").eq('username', username).execute()
             print(f"Supabase response: {response}")  # Debug log
             
             if not response.data:
@@ -570,7 +570,7 @@ def update_product(product_id):
         user_id = get_jwt_identity()
         
         # Check if product exists and belongs to user
-        product_response = supabase.table('products').select('*').eq('id', product_id).eq('user_id', user_id).execute()
+        product_response = supabase.from_('products').select('*').eq('id', product_id).eq('user_id', user_id).execute()
         if not product_response.data:
             return jsonify({"error": "Product not found or unauthorized"}), 404
         
@@ -633,7 +633,7 @@ def delete_product(product_id):
         user_id = get_jwt_identity()
         
         # Check if product exists and belongs to user
-        product_response = supabase.table('products').select('*').eq('id', product_id).eq('user_id', user_id).execute()
+        product_response = supabase.from_('products').select('*').eq('id', product_id).eq('user_id', user_id).execute()
         if not product_response.data:
             return jsonify({"error": "Product not found or unauthorized"}), 404
         
@@ -836,7 +836,7 @@ def generate_receipt():
 @moderate_rate_limit()
 def get_all_users():
     try:
-        response = supabase.table('users').select('*').execute()
+        response = supabase.from_('users').select('*').execute()
         return jsonify([{
             'id': u['id'],
             'username': u['username'],
@@ -906,7 +906,7 @@ def update_user(user_id):
             update_data['is_admin'] = data['is_admin']
 
         if update_data:
-            response = supabase.table('users').update(update_data).eq('id', user_id).execute()
+            response = supabase.from_('users').update(update_data).eq('id', user_id).execute()
             if not response.data:
                 return jsonify({'error': 'Failed to update user'}), 500
             
@@ -930,12 +930,12 @@ def delete_user(user_id):
         user = user_response.data[0]
         
         # Don't allow deleting the last admin
-        admins_response = supabase.table('users').select('id').eq('is_admin', True).execute()
+        admins_response = supabase.from_('users').select('id').eq('is_admin', True).execute()
         if user['is_admin'] and len(admins_response.data) <= 1:
             return jsonify({'error': 'Cannot delete the last admin user'}), 400
 
         # Delete user from Supabase
-        response = supabase.table('users').delete().eq('id', user_id).execute()
+        response = supabase.from_('users').delete().eq('id', user_id).execute()
         if not response.data:
             return jsonify({'error': 'Failed to delete user'}), 500
 
@@ -949,7 +949,7 @@ def delete_user(user_id):
 @moderate_rate_limit()
 def get_all_products():
     try:
-        response = supabase.table('products').select('*').execute()
+        response = supabase.from_('products').select('*').execute()
         return jsonify(response.data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
