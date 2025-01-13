@@ -236,13 +236,18 @@ def update_product(product_id, data):
 def delete_product(product_id):
     """Delete a product and its associated image"""
     try:
+        print(f"Attempting to delete product with ID: {product_id}")
         # First get the product to check if it exists and has an image
         product = supabase.from_('products').select('*').eq('id', product_id).execute()
+        print(f"Found product: {product.data if product.data else 'None'}")
+        
         if not product.data:
+            print("Product not found")
             return None
             
         # Delete the product
         response = supabase.from_('products').delete().eq('id', product_id).execute()
+        print(f"Delete response: {response.data if response.data else 'None'}")
         
         # If deletion was successful and product had an image, clean it up
         if response.data and product.data[0].get('image_url'):
@@ -677,20 +682,26 @@ def update_product(product_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/products/<product_id>', methods=['DELETE'])
+@app.route('/api/products/<string:product_id>', methods=['DELETE'])
 @jwt_required()
 @moderate_rate_limit()
 def delete_user_product(product_id):
     try:
+        print(f"Delete request for product ID: {product_id}")
         user_id = get_jwt_identity()
+        print(f"User ID: {user_id}")
         
         # Check if product exists and belongs to user
         product_response = supabase.from_('products').select('*').eq('id', product_id).eq('user_id', user_id).execute()
+        print(f"Product check response: {product_response.data if product_response.data else 'None'}")
+        
         if not product_response.data:
             return jsonify({"error": "Product not found or unauthorized"}), 404
         
         # Delete product and handle image cleanup
         response = delete_product(product_id)
+        print(f"Delete response: {response.data if response and response.data else 'None'}")
+        
         if not response or not response.data:
             return jsonify({"error": "Failed to delete product"}), 500
         
@@ -731,15 +742,15 @@ def generate_receipt():
         pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
         # Create PDF with custom page size and margins
-        page_width = 4 * inch  # Narrower width for a receipt-like feel
+        page_width = 3 * inch  # Narrower width for a receipt-like feel
         page_height = 11 * inch
         doc = SimpleDocTemplate(
             pdf_path,
             pagesize=(page_width, page_height),
-            rightMargin=0.25*inch,
-            leftMargin=0.25*inch,
-            topMargin=0.5*inch,
-            bottomMargin=0.5*inch
+            rightMargin=0.15*inch,
+            leftMargin=0.15*inch,
+            topMargin=0.3*inch,
+            bottomMargin=0.3*inch
         )
 
         # Prepare the story (content)
@@ -750,8 +761,8 @@ def generate_receipt():
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
-            fontSize=16,
-            spaceAfter=10,
+            fontSize=14,
+            spaceAfter=8,
             alignment=1,
             textColor=colors.HexColor('#1a237e')
         )
@@ -759,8 +770,8 @@ def generate_receipt():
         subtitle_style = ParagraphStyle(
             'Subtitle',
             parent=styles['Normal'],
-            fontSize=12,
-            spaceAfter=20,
+            fontSize=10,
+            spaceAfter=16,
             alignment=1,
             textColor=colors.HexColor('#424242')
         )
@@ -769,7 +780,7 @@ def generate_receipt():
             'DateStyle',
             parent=styles['Normal'],
             fontSize=8,
-            spaceAfter=20,
+            spaceAfter=16,
             alignment=1,
             textColor=colors.HexColor('#616161')
         )
@@ -790,8 +801,8 @@ def generate_receipt():
             thickness=1,
             lineCap='round',
             color=colors.HexColor('#e0e0e0'),
-            spaceBefore=10,
-            spaceAfter=10
+            spaceBefore=8,
+            spaceAfter=8
         ))
 
         # Format price in Indonesian Rupiah
@@ -805,31 +816,31 @@ def generate_receipt():
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#424242')),
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('FONTSIZE', (0, 0), (-1, 0), 7),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('TOPPADDING', (0, 0), (-1, 0), 6),
             
             # Content styling
             ('FONTNAME', (0, 1), (-1, -3), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -3), 8),
+            ('FONTSIZE', (0, 1), (-1, -3), 7),
             ('ALIGN', (0, 1), (0, -3), 'LEFT'),
             ('ALIGN', (1, 1), (-1, -3), 'RIGHT'),
             ('TEXTCOLOR', (0, 1), (-1, -3), colors.HexColor('#424242')),
             
             # Total section styling
             ('FONTNAME', (-2, -1), (-1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (-2, -1), (-1, -1), 9),
+            ('FONTSIZE', (-2, -1), (-1, -1), 8),
             ('TEXTCOLOR', (-2, -1), (-1, -1), colors.HexColor('#1a237e')),
             ('ALIGN', (-2, -1), (-1, -1), 'RIGHT'),
             ('LINEABOVE', (-2, -1), (-1, -1), 1, colors.HexColor('#e0e0e0')),
-            ('TOPPADDING', (-2, -1), (-1, -1), 8),
+            ('TOPPADDING', (-2, -1), (-1, -1), 6),
         ])
 
         # Prepare table data
         table_data = [['Item', 'Qty', 'Price', 'Total']]
         for item in items:
             table_data.append([
-                item['name'],
+                item['name'][:20],  # Limit name length
                 str(item['quantity']),
                 format_rupiah(item['price']),
                 format_rupiah(item['price'] * item['quantity'])
@@ -839,7 +850,7 @@ def generate_receipt():
         table_data.append(['', '', 'Total:', format_rupiah(total)])
 
         # Create and style the table
-        col_widths = [1.5*inch, 0.5*inch, 0.75*inch, 0.75*inch]
+        col_widths = [1.2*inch, 0.3*inch, 0.6*inch, 0.6*inch]
         table = Table(table_data, colWidths=col_widths)
         table.setStyle(table_style)
         story.append(table)
@@ -850,18 +861,18 @@ def generate_receipt():
             thickness=1,
             lineCap='round',
             color=colors.HexColor('#e0e0e0'),
-            spaceBefore=10,
-            spaceAfter=10
+            spaceBefore=8,
+            spaceAfter=8
         ))
 
         # Add footer
         footer_style = ParagraphStyle(
             'Footer',
             parent=styles['Normal'],
-            fontSize=8,
+            fontSize=7,
             alignment=1,
             textColor=colors.HexColor('#757575'),
-            spaceBefore=10
+            spaceBefore=8
         )
         story.append(Paragraph("Thank you for your purchase!", footer_style))
         story.append(Paragraph("Please come again", footer_style))
@@ -870,8 +881,10 @@ def generate_receipt():
         doc.build(story)
 
         # Get the base URL from environment or default
-        base_url = os.getenv('BASE_URL', 'http://localhost:5000')
+        base_url = os.getenv('BASE_URL', request.url_root.rstrip('/'))
         pdf_url = f"{base_url}/api/uploads/{filename}"
+
+        print(f"Generated PDF URL: {pdf_url}")  # Debug log
 
         return jsonify({
             'message': 'Receipt generated successfully',
@@ -971,13 +984,16 @@ def update_user(user_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
+@app.route('/api/admin/users/<string:user_id>', methods=['DELETE'])
 @admin_required()
 @moderate_rate_limit()
 def delete_user(user_id):
     try:
+        print(f"Delete request for user ID: {user_id}")
         # Check if user exists
         user_response = get_user_by_id(user_id)
+        print(f"User check response: {user_response.data if user_response.data else 'None'}")
+        
         if not user_response.data:
             return jsonify({'error': 'User not found'}), 404
 
@@ -988,14 +1004,28 @@ def delete_user(user_id):
         if user['is_admin'] and len(admins_response.data) <= 1:
             return jsonify({'error': 'Cannot delete the last admin user'}), 400
 
+        # Get all products for this user
+        products_response = supabase.from_('products').select('*').eq('user_id', user_id).execute()
+        
+        # Delete all products for this user first
+        if products_response.data:
+            for product in products_response.data:
+                delete_product(product['id'])
+
         # Delete user from Supabase
         response = supabase.from_('users').delete().eq('id', user_id).execute()
+        print(f"User delete response: {response.data if response.data else 'None'}")
+        
         if not response.data:
             return jsonify({'error': 'Failed to delete user'}), 500
+
+        # Clean up any unused images
+        cleanup_old_images()
 
         return jsonify({'message': 'User deleted successfully'}), 200
 
     except Exception as e:
+        print(f"Error deleting user: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/admin/products', methods=['GET'])
@@ -1019,18 +1049,23 @@ def get_all_products():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/admin/products/<product_id>', methods=['DELETE'])
+@app.route('/api/admin/products/<string:product_id>', methods=['DELETE'])
 @admin_required()
 @moderate_rate_limit()
 def admin_delete_product(product_id):
     try:
+        print(f"Admin delete request for product ID: {product_id}")
         # Check if product exists
         product_response = supabase.from_('products').select('*').eq('id', product_id).execute()
+        print(f"Product check response: {product_response.data if product_response.data else 'None'}")
+        
         if not product_response.data:
             return jsonify({"error": "Product not found"}), 404
         
         # Delete product and handle image cleanup
         response = delete_product(product_id)
+        print(f"Delete response: {response.data if response and response.data else 'None'}")
+        
         if not response or not response.data:
             return jsonify({"error": "Failed to delete product"}), 500
         
@@ -1044,12 +1079,16 @@ def admin_delete_product(product_id):
         return jsonify({"error": str(e)}), 500
 
 # Add OPTIONS method handlers for CORS preflight requests
-@app.route('/api/products/<product_id>', methods=['OPTIONS'])
+@app.route('/api/products/<string:product_id>', methods=['OPTIONS'])
 def products_options(product_id):
     return '', 204
 
-@app.route('/api/admin/products/<product_id>', methods=['OPTIONS'])
+@app.route('/api/admin/products/<string:product_id>', methods=['OPTIONS'])
 def admin_products_options(product_id):
+    return '', 204
+
+@app.route('/api/admin/users/<string:user_id>', methods=['OPTIONS'])
+def admin_users_options(user_id):
     return '', 204
 
 # Add request logging

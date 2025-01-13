@@ -156,14 +156,8 @@ export default function Dashboard() {
           ? response.data.pdf_url 
           : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${response.data.pdf_url}`;
 
-        // Create a hidden link and trigger download
-        const link = document.createElement('a');
-        link.href = pdfUrl;
-        link.target = '_blank';
-        link.download = `receipt_${new Date().toISOString().split('T')[0]}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // Open PDF in new tab
+        window.open(pdfUrl, '_blank');
 
         // Clear cart after successful receipt generation
         setCart([]);
@@ -208,9 +202,12 @@ export default function Dashboard() {
   const handleDeleteProduct = async (productId) => {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     try {
-      await api.delete(`/api/products/${productId}`);
-      setProducts(products.filter(p => p.id !== productId));
-      toast.success('Product deleted successfully');
+      console.log('Deleting product:', productId);
+      const response = await api.delete(`/api/products/${productId}`);
+      if (response.data.message) {
+        setProducts(products.filter(p => p.id !== productId));
+        toast.success('Product deleted successfully');
+      }
     } catch (error) {
       console.error('Error deleting product:', error);
       toast.error(error.response?.data?.error || 'Failed to delete product');

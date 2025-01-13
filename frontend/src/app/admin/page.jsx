@@ -72,10 +72,14 @@ export default function AdminDashboard() {
   const handleDeleteUser = async (userId) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     try {
-      await api.delete(`/api/admin/users/${userId}`);
-      setUsers(users.filter(u => u.id !== userId));
-      toast.success('User deleted successfully');
+      console.log('Deleting user:', userId);
+      const response = await api.delete(`/api/admin/users/${userId}`);
+      if (response.data.message) {
+        setUsers(users.filter(u => u.id !== userId));
+        toast.success('User deleted successfully');
+      }
     } catch (error) {
+      console.error('Error deleting user:', error);
       toast.error(error.response?.data?.error || 'Failed to delete user');
     }
   };
@@ -83,10 +87,14 @@ export default function AdminDashboard() {
   const handleDeleteProduct = async (productId) => {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     try {
-      await api.delete(`/api/admin/products/${productId}`);
-      setProducts(products.filter(p => p.id !== productId));
-      toast.success('Product deleted successfully');
+      console.log('Deleting product:', productId);
+      const response = await api.delete(`/api/admin/products/${productId}`);
+      if (response.data.message) {
+        setProducts(products.filter(p => p.id !== productId));
+        toast.success('Product deleted successfully');
+      }
     } catch (error) {
+      console.error('Error deleting product:', error);
       toast.error(error.response?.data?.error || 'Failed to delete product');
     }
   };
