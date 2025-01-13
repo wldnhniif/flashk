@@ -1,25 +1,33 @@
 app:
   name: flashk
   regions:
-    - sin
+    - frankfurt
   services:
     - name: backend
       instance_type: free
       git:
-        repository: https://github.com/yourusername/flashk.git
+        repository: https://github.com/wldnhniif/flashk.git
         branch: main
       build:
         builder: python
-        buildCommand: pip install -r requirements.txt
+        buildCommand: cd backend && pip install -r requirements.txt
+        workdir: /backend
       run:
-        command: cd backend && gunicorn app:app --bind 0.0.0.0:$PORT --workers 4 --threads 2
+        command: gunicorn app:app --bind 0.0.0.0:$PORT --workers 4 --threads 2
+        workdir: /backend
       ports:
         - port: 8000
           protocol: http
       env:
         - name: FLASK_ENV
           value: production
+        - name: FLASK_APP
+          value: app.py
+        - name: SECRET_KEY
+          secret: fb98d96c6877afae70d7c57eeb9cc6df71bdb796f5f0eb852ef11a20707ba12ac911d85bdff493112fde7a4968c6803b0232bb213a7316184e56f3d9181c5b3e26286830c7ba5367c82f797029059e941dd6b5b0af004a72cb8bd18c81060347def0bca86f5ff308d54deb1f8fb66d51dcdaa178a4622ec29f3db89f7f7d72df81a5b3d6ed25b5759884dc7206e261a8c16e5d900c6804a108d2e2b1870a800b99c45211f2b3b60db67a4a26951780f47babdf1902661567f240fe654d9814e0ad5990930d725f9b803854ae90e8c0a1b83424b31fbf4729ee37da66247d04299c1a2570f249b6ddef235f4e039f375f98b104789ae579d93113f697f66ae297ce689d5b0bad5a0f3a77bc3b727644f84f6da729a77a862752122916163f62aefb072a5ce877c9dbfa95a34ca2ed09f47a05317222c1dc1ed6cb762c3340af9f63c9ca799f35952e546982364fe99b59334ac167c9ffdc387b918d4568bce7b2f73be4f0cda5a077b5441ce028954ab9b48cfd4e8d54fbecbcb8487638f66b15cc14d1f2b1a12c4e69682ef750cd1591e0075eba3558f54c197f54e36992714fa51db9a66f5057b7ffed14616522dd82de3881b101c6018ca116dd58b9a3a956c873f213d4b989d3faac06da81435431777cbbb61c2401272af9481288e426f446f1f97c729a41247667baceb926609e0a8f722da778d2885f938ebd380c3e21
+        - name: JWT_SECRET_KEY
+          secret: ed6badbb104796ea2dc4c940d1a3e55448be1e5dec9a814d15ca6159255a3e9dffa7c361df8e713dc03b6539d7aeb4e3aaeccbde213320b0f0dbd79678376500226b50d6fa6ca7a84344238e8695dbe29f353ac0d00deb51af7c5782609222c2c928ee1c10ab18532bfcfda9a67130884b1674494899ff05784f70e8695d87429595d62d81ac2c267b2d59aa6b3d5f8693aa755a33d3eaec747a4288de379c142aa67af2105094181ac698e16a59271bd28da039c690f986596a70e1b7865bbc28cc975a1dfb523cfd5e743cc308547e701161d369fcdef2c53df16c104ee055834307c538779be9819d709a0553816f07803529c32897d4c752da158629fc68bd817829b65aac44b826c4b0831a3a322e7d16b6efb759a63255161eb54d4d54bf129474937cb8e6b697952a439145ea0db5e731ad6b71744c9a3edc4f3a642fbe9ec07b1557293e230bb60cc66dc297cbbdb6816204a7341a67e05b93bbeecc9d0f09597fec44ac8ff85267b2c491b85c07c9b7c7c0f3fce3fed962185acbbdeb4e52eebd63734474d44e420f364e75a3ef01a4fb3f673210f84fd421e01c93105672954aaff83af1b0bc8df187c14c5ccbffc1e4dbb9eb24e72da35972f5df1875196ed6b98a5cf624d6e3cae0bc12157990be3ff98f1fcf52f7b8daa741ec2653eeed44e57bdba926c1f789a6e1e6b5946b0433e14bc15f445d4549179852
         - name: SUPABASE_URL
           value: https://q6fuqvlmhtzejscaxtx.supabase.co
         - name: SUPABASE_KEY
-          secret: SUPABASE_KEY 
+          value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InE2ZnVxdmxtaHR6ZWpzY2F4dHgiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTcwOTk3NzY5OCwiZXhwIjoyMDI1NTUzNjk4fQ.eyJhbGc6OiJIUzI1NiIsInR5cCI6IkpXVCJ9
