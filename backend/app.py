@@ -287,6 +287,11 @@ def is_password_valid(password):
 @strict_rate_limit()
 def register():
     try:
+        # Check if Supabase client is initialized
+        if not supabase:
+            print("Supabase client not initialized")
+            return jsonify({"error": "Database connection error"}), 500
+
         data = request.get_json()
         if not data:
             print("No data provided in request")
@@ -310,33 +315,45 @@ def register():
         # Check if username exists
         try:
             print("Checking if username exists")  # Debug log
-            existing_user = get_user_by_username(username)
+            existing_user = supabase.table('users').select("*").eq('username', username).execute()
+            print(f"Existing user check response: {existing_user}")  # Debug log
+            
             if existing_user.data:
                 print("Username already exists")
                 return jsonify({"error": "Username already exists"}), 409
+                
         except Exception as e:
             print(f"Error checking username: {str(e)}")
             return jsonify({"error": "Error checking username availability"}), 500
         
         try:
             print("Creating user in database")  # Debug log
-            # Create user in Supabase with plain password for now
-            response = supabase.table('users').insert({
+            
+            # Prepare user data - match the exact column names in your table
+            user_data = {
                 'username': username,
-                'password': password,  # Store password as-is for now
-                'is_admin': False,
-                'created_at': datetime.now(timezone.utc).isoformat()
-            }).execute()
+                'password': password,
+                'is_admin': False
+                # created_at will be set automatically by the default value
+            }
+            print(f"User data to insert: {user_data}")  # Debug log
+            
+            # Insert into Supabase
+            response = supabase.table('users').insert(user_data).execute()
+            print(f"Supabase insert response: {response}")  # Debug log
             
             if not response.data:
-                print("Failed to create user")
+                print("Failed to create user - no data in response")
                 return jsonify({"error": "Failed to create user"}), 500
             
             user = response.data[0]
-            print("User created successfully")  # Debug log
+            print(f"User created successfully: {user}")  # Debug log
             
             # Create access token
-            access_token = create_access_token(identity=user['id'])
+            access_token = create_access_token(
+                identity=user['id'],
+                additional_claims={"is_admin": user.get('is_admin', False)}
+            )
             
             return jsonify({
                 "message": "User registered successfully",
@@ -344,17 +361,17 @@ def register():
                 "user": {
                     "id": user['id'],
                     "username": user['username'],
-                    "is_admin": user['is_admin']
+                    "is_admin": user.get('is_admin', False)
                 }
             }), 201
             
         except Exception as e:
             print(f"Error creating user: {str(e)}")
-            return jsonify({"error": "Failed to create user"}), 500
+            return jsonify({"error": f"Failed to create user: {str(e)}"}), 500
             
     except Exception as e:
         print(f"Registration error: {str(e)}")
-        return jsonify({"error": "An error occurred during registration"}), 500
+        return jsonify({"error": f"An error occurred during registration: {str(e)}"}), 500
 
 @app.route('/api/login', methods=['POST'])
 def login():
