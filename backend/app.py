@@ -50,8 +50,8 @@ try:
     # Create Supabase client with minimal configuration
     from supabase import Client, create_client
     supabase: Client = create_client(
-        supabase_url=supabase_url,
-        supabase_key=supabase_key
+        os.getenv('SUPABASE_URL'),
+        os.getenv('SUPABASE_KEY')
     )
     
     # Test the connection with a simple query
@@ -286,62 +286,89 @@ def is_password_valid(password):
 @app.route('/api/register', methods=['POST'])
 @strict_rate_limit()
 def register():
-    data = request.get_json()
-    username = data.get('username', '').strip()
-    password = data.get('password', '')
-    
-    # Validate input
-    if not username or not password:
-        return jsonify({"error": "Username and password are required"}), 400
-    
-    # Check username length
-    if len(username) < 3 or len(username) > 50:
-        return jsonify({"error": "Username must be between 3 and 50 characters"}), 400
-    
-    # Validate password
-    is_valid, message = is_password_valid(password)
-    if not is_valid:
-        return jsonify({"error": message}), 400
-    
-    # Check if username exists
-    existing_user = get_user_by_username(username)
-    if existing_user.data:
-        return jsonify({"error": "Username already exists"}), 409
-    
     try:
-        # Create user in Supabase
-        response = create_user(username, password)
-        if not response.data:
+        data = request.get_json()
+        if not data:
+            print("No data provided in request")
+            return jsonify({"error": "No data provided"}), 400
+            
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
+        
+        print(f"Registration attempt for username: {username}")  # Debug log
+        
+        # Validate input
+        if not username or not password:
+            print("Missing username or password")
+            return jsonify({"error": "Username and password are required"}), 400
+        
+        # Check username length
+        if len(username) < 3 or len(username) > 50:
+            print("Invalid username length")
+            return jsonify({"error": "Username must be between 3 and 50 characters"}), 400
+        
+        # Check if username exists
+        try:
+            print("Checking if username exists")  # Debug log
+            existing_user = get_user_by_username(username)
+            if existing_user.data:
+                print("Username already exists")
+                return jsonify({"error": "Username already exists"}), 409
+        except Exception as e:
+            print(f"Error checking username: {str(e)}")
+            return jsonify({"error": "Error checking username availability"}), 500
+        
+        try:
+            print("Creating user in database")  # Debug log
+            # Create user in Supabase with plain password for now
+            response = supabase.table('users').insert({
+                'username': username,
+                'password': password,  # Store password as-is for now
+                'is_admin': False,
+                'created_at': datetime.now(timezone.utc).isoformat()
+            }).execute()
+            
+            if not response.data:
+                print("Failed to create user")
+                return jsonify({"error": "Failed to create user"}), 500
+            
+            user = response.data[0]
+            print("User created successfully")  # Debug log
+            
+            # Create access token
+            access_token = create_access_token(identity=user['id'])
+            
+            return jsonify({
+                "message": "User registered successfully",
+                "access_token": access_token,
+                "user": {
+                    "id": user['id'],
+                    "username": user['username'],
+                    "is_admin": user['is_admin']
+                }
+            }), 201
+            
+        except Exception as e:
+            print(f"Error creating user: {str(e)}")
             return jsonify({"error": "Failed to create user"}), 500
-        
-        user = response.data[0]
-        # Create access token
-        access_token = create_access_token(identity=user['id'])
-        
-        return jsonify({
-            "message": "User registered successfully",
-            "access_token": access_token,
-            "user": {
-                "id": user['id'],
-                "username": user['username'],
-                "is_admin": user['is_admin']
-            }
-        }), 201
-        
+            
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Registration error: {str(e)}")
+        return jsonify({"error": "An error occurred during registration"}), 500
 
 @app.route('/api/login', methods=['POST'])
 def login():
     try:
         data = request.get_json()
         if not data:
+            print("No data provided in request")
             return jsonify({"error": "No data provided"}), 400
             
         username = data.get('username', '').strip()
         password = data.get('password', '')
         
         if not username or not password:
+            print("Missing username or password")
             return jsonify({"error": "Username and password are required"}), 400
         
         print(f"Login attempt for user: {username}")  # Debug log
@@ -362,8 +389,12 @@ def login():
                 }
             }), 200
         
+        # Only proceed with Supabase query if supabase client is initialized
+        if not supabase:
+            print("Supabase client not initialized")
+            return jsonify({"error": "Database connection error"}), 500
+            
         try:
-            # Only query Supabase if not admin
             print("Querying Supabase for user")  # Debug log
             response = supabase.table('users').select("*").eq('username', username).execute()
             print(f"Supabase response: {response}")  # Debug log
