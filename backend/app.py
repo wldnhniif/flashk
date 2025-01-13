@@ -21,18 +21,41 @@ import re
 from flask_talisman import Talisman
 from supabase import create_client, Client
 import time
+import sys
 
 # Load environment variables
 load_dotenv()
 
+# Validate required environment variables
+required_env_vars = [
+    'SUPABASE_URL',
+    'SUPABASE_KEY',
+    'JWT_SECRET_KEY'
+]
+
+missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+if missing_vars:
+    print(f"Error: Missing required environment variables: {', '.join(missing_vars)}")
+    sys.exit(1)
+
 # Initialize Flask app
 app = Flask(__name__)
 
-# Initialize Supabase client
-supabase: Client = create_client(
-    os.getenv('SUPABASE_URL'),
-    os.getenv('SUPABASE_KEY')
-)
+# Initialize Supabase client with error handling
+try:
+    supabase_url = os.getenv('SUPABASE_URL')
+    supabase_key = os.getenv('SUPABASE_KEY')
+    print(f"Initializing Supabase client with URL: {supabase_url}")
+    
+    supabase = create_client(supabase_url, supabase_key)
+    
+    # Test the connection
+    test_response = supabase.table('users').select("*").limit(1).execute()
+    print("Supabase connection test successful")
+    
+except Exception as e:
+    print(f"Error initializing Supabase client: {str(e)}")
+    sys.exit(1)
 
 # Enable security headers with Talisman
 talisman = Talisman(
@@ -297,63 +320,95 @@ def register():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/login', methods=['POST'])
-@strict_rate_limit()
 def login():
-    data = request.get_json()
-    username = data.get('username', '').strip()
-    password = data.get('password', '')
-    
-    if not username or not password:
-        return jsonify({"error": "Username and password are required"}), 400
-    
-    # Get IP address for rate limiting
-    ip_address = request.remote_addr
-    
-    # Check if user is locked out
-    if ip_address in FAILED_LOGIN_ATTEMPTS:
-        attempts, lockout_time = FAILED_LOGIN_ATTEMPTS[ip_address]
-        if attempts >= MAX_FAILED_ATTEMPTS:
-            time_remaining = lockout_time + LOCKOUT_TIME - time.time()
-            if time_remaining > 0:
-                return jsonify({
-                    "error": f"Too many failed attempts. Please try again in {int(time_remaining)} seconds"
-                }), 429
-            else:
-                # Reset attempts if lockout time has passed
-                del FAILED_LOGIN_ATTEMPTS[ip_address]
-    
     try:
-        # Get user from Supabase
-        response = get_user_by_username(username)
-        if not response.data:
-            record_failed_login(ip_address)
-            return jsonify({"error": "Invalid username or password"}), 401
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+            
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
         
-        user = response.data[0]
+        if not username or not password:
+            return jsonify({"error": "Username and password are required"}), 400
         
-        # Verify password
-        if not check_password_hash(user['password'], password):
-            record_failed_login(ip_address)
-            return jsonify({"error": "Invalid username or password"}), 401
+        try:
+            # Get user from Supabase with error handling
+            response = supabase.table('users').select("*").eq('username', username).execute()
+            
+            if not response.data:
+                return jsonify({"error": "Invalid username or password"}), 401
+            
+            user = response.data[0]
+            stored_password = user.get('password', '')
+            
+            # For debugging (remove in production)
+            print(f"Login attempt for user: {username}")
+            print(f"Stored password format: {stored_password[:20]}...")
+            
+            if verify_password(password, stored_password):
+                # Create access token
+                access_token = create_access_token(identity=user['id'])
+                
+                return jsonify({
+                    "access_token": access_token,
+                    "user": {
+                        "id": user['id'],
+                        "username": user['username'],
+                        "is_admin": user.get('is_admin', False)
+                    }
+                }), 200
+            else:
+                return jsonify({"error": "Invalid username or password"}), 401
+            
+        except Exception as e:
+            print(f"Database error during login: {str(e)}")
+            return jsonify({"error": "Database error occurred"}), 500
+            
+    except Exception as e:
+        print(f"General error during login: {str(e)}")
+        return jsonify({"error": "An error occurred during login"}), 500
+
+def verify_password(password, stored_password_hash):
+    """Verify a password against a stored hash"""
+    try:
+        # For debugging (remove in production)
+        print(f"Verifying password hash format: {stored_password_hash[:20]}...")
         
-        # Reset failed attempts on successful login
-        if ip_address in FAILED_LOGIN_ATTEMPTS:
-            del FAILED_LOGIN_ATTEMPTS[ip_address]
+        if not stored_password_hash or not password:
+            return False
+            
+        # Extract hash components
+        parts = stored_password_hash.split('$')
+        if len(parts) != 4:
+            print(f"Invalid hash format. Expected 4 parts, got {len(parts)}")
+            return False
+            
+        method, iterations, salt = parts[1:4]
+        if method != 'pbkdf2-sha256':
+            print(f"Unsupported hash method: {method}")
+            return False
+            
+        iterations = int(iterations)
         
-        # Create access token
-        access_token = create_access_token(identity=user['id'])
+        # Hash the provided password
+        import hashlib
+        import base64
         
-        return jsonify({
-            "access_token": access_token,
-            "user": {
-                "id": user['id'],
-                "username": user['username'],
-                "is_admin": user['is_admin']
-            }
-        }), 200
+        dk = hashlib.pbkdf2_hmac(
+            'sha256', 
+            password.encode('utf-8'),
+            salt.encode('utf-8'),
+            iterations
+        )
+        
+        # Compare hashes
+        encoded = base64.b64encode(dk).decode('utf-8')
+        return encoded == stored_password_hash
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Password verification error: {str(e)}")
+        return False
 
 def record_failed_login(ip_address):
     """Record failed login attempt and update lockout status"""

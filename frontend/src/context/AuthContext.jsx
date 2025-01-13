@@ -15,6 +15,7 @@ export function AuthProvider({ children }) {
     headers: {
       'Content-Type': 'application/json',
     },
+    withCredentials: false
   });
 
   // Add request interceptor to include token
@@ -24,18 +25,37 @@ export function AuthProvider({ children }) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
+  }, (error) => {
+    return Promise.reject(error);
   });
+
+  // Add response interceptor to handle errors
+  api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.response?.status === 401) {
+        localStorage.removeItem('token');
+        setUser(null);
+      }
+      return Promise.reject(error.response?.data || { error: 'Network error occurred' });
+    }
+  );
 
   const login = async (username, password) => {
     try {
       const response = await api.post('/api/login', { username, password });
-      const { token, user_id, username: userName, is_admin } = response.data;
-      localStorage.setItem('token', token);
-      setUser({ id: user_id, username: userName, is_admin });
+      const { access_token, user } = response.data;
+      
+      localStorage.setItem('token', access_token);
+      setUser({
+        id: user.id,
+        username: user.username,
+        is_admin: user.is_admin
+      });
+      
       return true;
     } catch (error) {
-      console.error('Login error:', error);
-      throw error;
+      throw error?.error || error?.message || 'Login failed';
     }
   };
 

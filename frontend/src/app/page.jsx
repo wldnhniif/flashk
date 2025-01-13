@@ -31,7 +31,7 @@ export default function LoginPage() {
         setPassword('');
       }
     } catch (error) {
-      toast.error(error.response?.data?.error || 'An error occurred');
+      toast.error(typeof error === 'string' ? error : 'Authentication failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
