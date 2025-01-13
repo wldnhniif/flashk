@@ -1,121 +1,104 @@
-<<<<<<< HEAD
 # KasirKuy - Point of Sale System
 
-A modern point of sale system built with Flask and React.
+A modern Point of Sale (POS) system built with Flask and React. This application provides a secure and efficient way to manage products, generate receipts, and handle user authentication.
 
 ## Features
 
 - User authentication with JWT
-- Product management with variants
-- Image upload support
-- PDF receipt generation
-- Admin dashboard
-- Rate limiting and security features
-- Modern UI/UX
+- Role-based access control (Admin/User)
+- Product management (CRUD operations)
+- Receipt generation (PDF)
+- Secure file uploads
+- Rate limiting
+- Security headers
+- Cross-Origin Resource Sharing (CORS) configuration
 
 ## Tech Stack
 
 ### Backend
 - Flask
-- SQLAlchemy
-- JWT Authentication
+- Flask-JWT-Extended
+- Flask-CORS
 - Flask-Limiter
 - Flask-Talisman
-- ReportLab (PDF generation)
-- MySQL/SQLite
+- Supabase
+- ReportLab
+- Gunicorn
 
 ### Frontend
 - React
-- Material-UI
-- Axios
-- React Router
+- Next.js
+- Tailwind CSS
+- React Icons
+- Supabase Client
 
-## Setup
+## Getting Started
+
+### Prerequisites
+- Python 3.11
+- Node.js
+- npm/yarn
+- Supabase account
+
+### Installation
 
 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/kasirkuy.git
-cd kasirkuy
+git clone <your-repo-url>
+cd kasierkuy
 ```
 
-2. Set up virtual environment
+2. Backend Setup
 ```bash
+cd backend
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies
-```bash
 pip install -r requirements.txt
+cp .env.example .env  # Configure your environment variables
 ```
 
-4. Configure environment variables
-```bash
-cp .env.example .env
-# Edit .env with your configuration
-```
-
-5. Initialize database
-```bash
-cd backend
-flask db upgrade
-```
-
-## Development
-
-1. Start backend server
-```bash
-cd backend
-flask run
-```
-
-2. Start frontend development server
+3. Frontend Setup
 ```bash
 cd frontend
 npm install
-npm start
+cp .env.example .env.local  # Configure your environment variables
 ```
 
-## Deployment
+### Running the Application
 
-### Koyeb Deployment
+1. Start the backend server
+```bash
+cd backend
+python app.py
+```
 
-1. Create a new Koyeb account if you haven't already
-2. Install Koyeb CLI
-3. Configure your environment variables in Koyeb dashboard
-4. Deploy using Git:
-   - Connect your GitHub repository
-   - Select the main branch
-   - Configure build settings using the Procfile
-   - Set environment variables
-   - Deploy!
+2. Start the frontend development server
+```bash
+cd frontend
+npm run dev
+```
 
-## Security Features
+## Environment Variables
 
-- Rate limiting on all endpoints
-- Password complexity requirements
-- Brute force protection
-- JWT token management
-- Security headers (HSTS, CSP, etc.)
-- SQL injection protection
-- XSS protection
-- CSRF protection
+### Backend (.env)
+- `SUPABASE_URL`: Your Supabase project URL
+- `SUPABASE_KEY`: Your Supabase project API key
+- `JWT_SECRET_KEY`: Secret key for JWT token generation
+- `JWT_ACCESS_TOKEN_EXPIRES`: Token expiration time in seconds
 
-## API Documentation
-
-Detailed API documentation is available in the `/docs` folder.
-
-## License
-
-MIT License
+### Frontend (.env.local)
+- `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase project public API key
+- `NEXT_PUBLIC_API_URL`: Backend API URL
 
 ## Contributing
 
 1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a new Pull Request 
-=======
-# KasirKuy
->>>>>>> ab9f21a16db9bfc316119517fee2b09645e242aa
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

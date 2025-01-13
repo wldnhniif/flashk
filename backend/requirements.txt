@@ -10,5 +10,5 @@ reportlab==4.1.0
 PyMySQL==1.1.0
 gunicorn==21.2.0
 redis==5.0.1
-supabase==1.2.0
+supabase==0.7.1
 python-version==3.11.0 
