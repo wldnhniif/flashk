@@ -35,7 +35,7 @@ export default function Dashboard() {
   const fetchProducts = async () => {
     try {
       const response = await api.get('/api/products');
-      setProducts(response.data);
+      setProducts(response.data.products);
     } catch (error) {
       toast.error('Failed to fetch products');
     }
@@ -63,7 +63,7 @@ export default function Dashboard() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      setProducts([...products, response.data]);
+      setProducts([...products, response.data.product]);
       setNewProduct({ name: '', price: '', image: null });
       setImagePreview(null);
       toast.success('Product added successfully');
@@ -239,7 +239,7 @@ export default function Dashboard() {
                   {product.image_url ? (
                     <div className="w-full h-48 relative">
                       <img
-                        src={`http://localhost:5000${product.image_url}`}
+                        src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${product.image_url}`}
                         alt={product.name}
                         className="w-full h-full object-cover"
                       />

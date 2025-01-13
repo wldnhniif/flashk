@@ -41,6 +41,7 @@ export default function AdminDashboard() {
       setProducts(productsRes.data);
     } catch (error) {
       toast.error('Failed to fetch data');
+      console.error('Fetch error:', error);
     }
   };
 
@@ -311,7 +312,7 @@ export default function AdminDashboard() {
                         <div className="flex items-center">
                           {p.image_url ? (
                             <img
-                              src={`http://localhost:5000${p.image_url}`}
+                              src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${p.image_url}`}
                               alt={p.name}
                               className="h-10 w-10 rounded-full object-cover"
                             />

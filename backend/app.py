@@ -938,8 +938,19 @@ def delete_user(user_id):
 @moderate_rate_limit()
 def get_all_products():
     try:
-        response = supabase.from_('products').select('*').execute()
-        return jsonify(response.data), 200
+        # Get products with user information
+        response = supabase.from_('products').select('*, users(username)').execute()
+        
+        # Format the response
+        products = []
+        for product in response.data:
+            user = product.pop('users', {})
+            products.append({
+                **product,
+                'user_name': user.get('username') if user else None
+            })
+            
+        return jsonify(products), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
