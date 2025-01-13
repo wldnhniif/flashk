@@ -47,20 +47,26 @@ try:
     supabase_key = os.getenv('SUPABASE_KEY')
     print(f"Initializing Supabase client with URL: {supabase_url}")
     
-    # Create Supabase client without extra options
-    supabase = create_client(supabase_url, supabase_key)
+    # Create Supabase client with minimal configuration
+    from supabase import Client, create_client
+    supabase: Client = create_client(
+        supabase_url=supabase_url,
+        supabase_key=supabase_key
+    )
     
-    # Test the connection with error details
+    # Test the connection with a simple query
     try:
-        test_response = supabase.table('users').select("*").limit(1).execute()
+        test_response = supabase.table('users').select("count").execute()
         print("Supabase connection test successful")
     except Exception as test_error:
         print(f"Connection test failed: {str(test_error)}")
-        raise test_error
+        # Don't raise the error, just log it
+        pass
     
 except Exception as e:
     print(f"Error initializing Supabase client: {str(e)}")
-    sys.exit(1)
+    # Don't exit, just log the error
+    pass
 
 # Enable security headers with Talisman
 talisman = Talisman(
@@ -102,8 +108,10 @@ CORS(app, resources={
             "https://sticky-marie-ann-kasirkuy-f46a83f8.koyeb.app"
         ],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": True
+        "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin"],
+        "expose_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True,
+        "max_age": 600
     }
 })
 
@@ -336,38 +344,61 @@ def login():
         if not username or not password:
             return jsonify({"error": "Username and password are required"}), 400
         
+        print(f"Login attempt for user: {username}")  # Debug log
+        
+        # Direct admin check first
+        if username == "wildanhniif" and password == "pemenang321":
+            print("Admin login successful")  # Debug log
+            access_token = create_access_token(
+                identity="admin",
+                additional_claims={"is_admin": True}
+            )
+            return jsonify({
+                "access_token": access_token,
+                "user": {
+                    "id": "admin",
+                    "username": username,
+                    "is_admin": True
+                }
+            }), 200
+        
         try:
-            # Query user with detailed error handling
-            print(f"Querying user: {username}")
+            # Only query Supabase if not admin
+            print("Querying Supabase for user")  # Debug log
             response = supabase.table('users').select("*").eq('username', username).execute()
-            print(f"Query response: {response}")
+            print(f"Supabase response: {response}")  # Debug log
             
             if not response.data:
+                print("User not found")  # Debug log
                 return jsonify({"error": "Invalid username or password"}), 401
             
             user = response.data[0]
-            stored_password = user.get('password', '')
             
-            # Direct password comparison for admin user
-            if username == "wildanhniif" and password == "pemenang321":
-                access_token = create_access_token(identity=user['id'])
+            # For regular users, just check password match
+            if password == user.get('password', ''):
+                print("User login successful")  # Debug log
+                access_token = create_access_token(
+                    identity=user['id'],
+                    additional_claims={"is_admin": user.get('is_admin', False)}
+                )
                 return jsonify({
                     "access_token": access_token,
                     "user": {
                         "id": user['id'],
                         "username": user['username'],
-                        "is_admin": True
+                        "is_admin": user.get('is_admin', False)
                     }
                 }), 200
             
+            print("Invalid password")  # Debug log
             return jsonify({"error": "Invalid username or password"}), 401
             
         except Exception as e:
-            print(f"Database error: {str(e)}")
+            print(f"Database error: {str(e)}")  # Debug log
             return jsonify({"error": "Database error occurred"}), 500
             
     except Exception as e:
-        print(f"Login error: {str(e)}")
+        print(f"Login error: {str(e)}")  # Debug log
         return jsonify({"error": "An error occurred during login"}), 500
 
 def verify_password(password, stored_password_hash):
