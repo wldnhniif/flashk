@@ -130,6 +130,9 @@ export default function Dashboard() {
     }
 
     try {
+      // Show loading toast
+      const loadingToast = toast.loading('Generating receipt...');
+
       // Format cart items to send only numerical values for prices
       const items = cart.map(item => ({
         name: item.name,
@@ -145,8 +148,23 @@ export default function Dashboard() {
       });
 
       if (response.data.pdf_url) {
-        // Open PDF in new tab
-        window.open(`http://localhost:5000${response.data.pdf_url}`, '_blank');
+        // Dismiss loading toast
+        toast.dismiss(loadingToast);
+
+        // Get the full URL
+        const pdfUrl = response.data.pdf_url.startsWith('http') 
+          ? response.data.pdf_url 
+          : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${response.data.pdf_url}`;
+
+        // Create a hidden link and trigger download
+        const link = document.createElement('a');
+        link.href = pdfUrl;
+        link.target = '_blank';
+        link.download = `receipt_${new Date().toISOString().split('T')[0]}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
         // Clear cart after successful receipt generation
         setCart([]);
         toast.success('Receipt generated successfully');

@@ -234,7 +234,31 @@ def update_product(product_id, data):
     return supabase.from_('products').update(data).eq('id', product_id).execute()
 
 def delete_product(product_id):
-    return supabase.from_('products').delete().eq('id', product_id).execute()
+    """Delete a product and its associated image"""
+    try:
+        # First get the product to check if it exists and has an image
+        product = supabase.from_('products').select('*').eq('id', product_id).execute()
+        if not product.data:
+            return None
+            
+        # Delete the product
+        response = supabase.from_('products').delete().eq('id', product_id).execute()
+        
+        # If deletion was successful and product had an image, clean it up
+        if response.data and product.data[0].get('image_url'):
+            try:
+                filename = product.data[0]['image_url'].split('/')[-1]
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    print(f"Deleted image file: {filename}")
+            except Exception as e:
+                print(f"Error deleting image file: {str(e)}")
+        
+        return response
+    except Exception as e:
+        print(f"Error in delete_product: {str(e)}")
+        return None
 
 # Admin middleware
 def admin_required():
@@ -653,10 +677,10 @@ def update_product(product_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/products/<int:product_id>', methods=['DELETE'])
+@app.route('/api/products/<product_id>', methods=['DELETE'])
 @jwt_required()
 @moderate_rate_limit()
-def delete_product(product_id):
+def delete_user_product(product_id):
     try:
         user_id = get_jwt_identity()
         
@@ -665,28 +689,18 @@ def delete_product(product_id):
         if not product_response.data:
             return jsonify({"error": "Product not found or unauthorized"}), 404
         
-        # Store image URL for cleanup
-        product = product_response.data[0]
-        image_url = product.get('image_url')
-        
-        # Delete product from Supabase
+        # Delete product and handle image cleanup
         response = delete_product(product_id)
-        if not response.data:
+        if not response or not response.data:
             return jsonify({"error": "Failed to delete product"}), 500
         
-        # Clean up the product's image if it exists
-        if image_url:
-            filename = image_url.split('/')[-1]
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            if os.path.exists(file_path):
-                os.remove(file_path)
-        
-        # Clean up any other unused images
+        # Run general cleanup
         cleanup_old_images()
         
         return jsonify({"message": "Product deleted successfully"}), 200
         
     except Exception as e:
+        print(f"Error deleting product: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/uploads/<filename>')
@@ -717,13 +731,13 @@ def generate_receipt():
         pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
         # Create PDF with custom page size and margins
-        page_width = 4.5 * inch  # Narrower width for a receipt-like feel
+        page_width = 4 * inch  # Narrower width for a receipt-like feel
         page_height = 11 * inch
         doc = SimpleDocTemplate(
             pdf_path,
             pagesize=(page_width, page_height),
-            rightMargin=0.3*inch,
-            leftMargin=0.3*inch,
+            rightMargin=0.25*inch,
+            leftMargin=0.25*inch,
             topMargin=0.5*inch,
             bottomMargin=0.5*inch
         )
@@ -736,38 +750,35 @@ def generate_receipt():
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
-            fontSize=24,
+            fontSize=16,
             spaceAfter=10,
             alignment=1,
-            textColor=colors.HexColor('#1a237e'),  # Dark blue
-            fontName='Helvetica-Bold'
+            textColor=colors.HexColor('#1a237e')
         )
 
         subtitle_style = ParagraphStyle(
             'Subtitle',
             parent=styles['Normal'],
-            fontSize=14,
+            fontSize=12,
             spaceAfter=20,
             alignment=1,
-            textColor=colors.HexColor('#424242'),  # Dark grey
-            fontName='Helvetica'
+            textColor=colors.HexColor('#424242')
         )
 
         date_style = ParagraphStyle(
             'DateStyle',
             parent=styles['Normal'],
-            fontSize=10,
+            fontSize=8,
             spaceAfter=20,
             alignment=1,
-            textColor=colors.HexColor('#616161'),  # Medium grey
-            fontName='Helvetica-Oblique'
+            textColor=colors.HexColor('#616161')
         )
 
-        # Add logo/title
+        # Add header
         story.append(Paragraph("KasirKuy", title_style))
-        story.append(Paragraph("Digital Receipt", subtitle_style))
+        story.append(Paragraph("Sales Receipt", subtitle_style))
         
-        # Add date with more professional format
+        # Add date and time
         current_time = datetime.now()
         date_str = current_time.strftime('%B %d, %Y')
         time_str = current_time.strftime('%I:%M %p')
@@ -780,42 +791,38 @@ def generate_receipt():
             lineCap='round',
             color=colors.HexColor('#e0e0e0'),
             spaceBefore=10,
-            spaceAfter=20
+            spaceAfter=10
         ))
 
         # Format price in Indonesian Rupiah
         def format_rupiah(amount):
             return f"Rp {amount:,.0f}"
 
-        # Create table with modern styling
+        # Create table with styling
         table_style = TableStyle([
             # Header styling
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5f5f5')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#424242')),
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('TOPPADDING', (0, 0), (-1, 0), 12),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
             
             # Content styling
             ('FONTNAME', (0, 1), (-1, -3), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -3), 9),
+            ('FONTSIZE', (0, 1), (-1, -3), 8),
             ('ALIGN', (0, 1), (0, -3), 'LEFT'),
             ('ALIGN', (1, 1), (-1, -3), 'RIGHT'),
             ('TEXTCOLOR', (0, 1), (-1, -3), colors.HexColor('#424242')),
-            ('GRID', (0, 0), (-1, -3), 0.5, colors.HexColor('#e0e0e0')),
-            
-            # Subtle row colors
-            ('ROWBACKGROUNDS', (0, 1), (-1, -3), [colors.white, colors.HexColor('#fafafa')]),
             
             # Total section styling
             ('FONTNAME', (-2, -1), (-1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (-2, -1), (-1, -1), 11),
+            ('FONTSIZE', (-2, -1), (-1, -1), 9),
             ('TEXTCOLOR', (-2, -1), (-1, -1), colors.HexColor('#1a237e')),
             ('ALIGN', (-2, -1), (-1, -1), 'RIGHT'),
             ('LINEABOVE', (-2, -1), (-1, -1), 1, colors.HexColor('#e0e0e0')),
-            ('TOPPADDING', (-2, -1), (-1, -1), 12),
+            ('TOPPADDING', (-2, -1), (-1, -1), 8),
         ])
 
         # Prepare table data
@@ -832,7 +839,7 @@ def generate_receipt():
         table_data.append(['', '', 'Total:', format_rupiah(total)])
 
         # Create and style the table
-        col_widths = [1.8*inch, 0.5*inch, 0.9*inch, 0.9*inch]
+        col_widths = [1.5*inch, 0.5*inch, 0.75*inch, 0.75*inch]
         table = Table(table_data, colWidths=col_widths)
         table.setStyle(table_style)
         story.append(table)
@@ -843,7 +850,7 @@ def generate_receipt():
             thickness=1,
             lineCap='round',
             color=colors.HexColor('#e0e0e0'),
-            spaceBefore=20,
+            spaceBefore=10,
             spaceAfter=10
         ))
 
@@ -851,20 +858,24 @@ def generate_receipt():
         footer_style = ParagraphStyle(
             'Footer',
             parent=styles['Normal'],
-            fontSize=9,
+            fontSize=8,
             alignment=1,
             textColor=colors.HexColor('#757575'),
             spaceBefore=10
         )
         story.append(Paragraph("Thank you for your purchase!", footer_style))
-        story.append(Paragraph("Please visit us again", footer_style))
+        story.append(Paragraph("Please come again", footer_style))
         
         # Build PDF
         doc.build(story)
 
+        # Get the base URL from environment or default
+        base_url = os.getenv('BASE_URL', 'http://localhost:5000')
+        pdf_url = f"{base_url}/api/uploads/{filename}"
+
         return jsonify({
             'message': 'Receipt generated successfully',
-            'pdf_url': f"/api/uploads/{filename}"
+            'pdf_url': pdf_url
         }), 200
 
     except Exception as e:
@@ -1008,7 +1019,7 @@ def get_all_products():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/admin/products/<int:product_id>', methods=['DELETE'])
+@app.route('/api/admin/products/<product_id>', methods=['DELETE'])
 @admin_required()
 @moderate_rate_limit()
 def admin_delete_product(product_id):
@@ -1018,23 +1029,28 @@ def admin_delete_product(product_id):
         if not product_response.data:
             return jsonify({"error": "Product not found"}), 404
         
-        # Delete image if exists
-        product = product_response.data[0]
-        if product.get('image_url'):
-            filename = product['image_url'].split('/')[-1]
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            if os.path.exists(file_path):
-                os.remove(file_path)
-        
-        # Delete product from Supabase
+        # Delete product and handle image cleanup
         response = delete_product(product_id)
-        if not response.data:
+        if not response or not response.data:
             return jsonify({"error": "Failed to delete product"}), 500
+        
+        # Run general cleanup
+        cleanup_old_images()
         
         return jsonify({"message": "Product deleted successfully"}), 200
         
     except Exception as e:
+        print(f"Error deleting product: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+# Add OPTIONS method handlers for CORS preflight requests
+@app.route('/api/products/<product_id>', methods=['OPTIONS'])
+def products_options(product_id):
+    return '', 204
+
+@app.route('/api/admin/products/<product_id>', methods=['OPTIONS'])
+def admin_products_options(product_id):
+    return '', 204
 
 # Add request logging
 @app.after_request
