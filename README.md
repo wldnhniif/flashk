@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # KasirKuy - Point of Sale System
 
 A modern point of sale system built with Flask and React.
@@ -115,3 +116,6 @@ MIT License
 3. Commit your changes
 4. Push to the branch
 5. Create a new Pull Request 
+=======
+# KasirKuy
+>>>>>>> ab9f21a16db9bfc316119517fee2b09645e242aa
