@@ -19,7 +19,7 @@ from flask_limiter.util import get_remote_address
 import json
 import re
 from flask_talisman import Talisman
-from supabase.client import Client, create_client
+from supabase import create_client
 import time
 import sys
 
@@ -41,7 +41,7 @@ if missing_vars:
 # Initialize Flask app
 app = Flask(__name__)
 
-# Initialize Supabase client with error handling
+# Initialize Supabase client
 try:
     supabase_url = os.getenv('SUPABASE_URL')
     supabase_key = os.getenv('SUPABASE_KEY')
@@ -53,23 +53,12 @@ try:
         sys.exit(1)
         
     print(f"Initializing Supabase client with URL: {supabase_url}")
+    supabase = create_client(supabase_url=supabase_url, supabase_key=supabase_key)
     
-    # Import and initialize Supabase client
-    from supabase import create_client, Client
-    
-    # Initialize with minimal configuration
-    supabase = create_client(supabase_url, supabase_key)
-    
-    # Test the connection with a simple query
-    try:
-        test_response = supabase.from_('users').select("*").limit(1).execute()
-        print("Supabase connection successful")
-        print(f"Test query response: {test_response}")
-    except Exception as test_error:
-        print(f"Connection test failed: {str(test_error)}")
-        print(f"Error type: {type(test_error)}")
-        print(f"Error details: {test_error.__dict__ if hasattr(test_error, '__dict__') else {}}")
-        raise
+    # Test the connection
+    print("Testing Supabase connection...")
+    test_response = supabase.from_('users').select("count").execute()
+    print(f"Connection test successful: {test_response}")
     
 except Exception as e:
     print(f"Error initializing Supabase client: {str(e)}")
