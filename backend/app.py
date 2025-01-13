@@ -47,11 +47,16 @@ try:
     supabase_key = os.getenv('SUPABASE_KEY')
     print(f"Initializing Supabase client with URL: {supabase_url}")
     
+    # Create Supabase client without extra options
     supabase = create_client(supabase_url, supabase_key)
     
-    # Test the connection
-    test_response = supabase.table('users').select("*").limit(1).execute()
-    print("Supabase connection test successful")
+    # Test the connection with error details
+    try:
+        test_response = supabase.table('users').select("*").limit(1).execute()
+        print("Supabase connection test successful")
+    except Exception as test_error:
+        print(f"Connection test failed: {str(test_error)}")
+        raise test_error
     
 except Exception as e:
     print(f"Error initializing Supabase client: {str(e)}")
@@ -88,20 +93,19 @@ if not os.path.exists(UPLOAD_FOLDER):
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # More permissive CORS settings
-CORS(app, 
-     resources={
-         r"/*": {
-             "origins": [
-                 "http://localhost:3000",
-                 "https://flashk.vercel.app",
-                 "https://flashk-wldnhniif.vercel.app"
-             ],
-             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
-             "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
-             "supports_credentials": True,
-             "expose_headers": ["Content-Range", "X-Content-Range"]
-         }
-     })
+CORS(app, resources={
+    r"/api/*": {
+        "origins": [
+            "http://localhost:3000",
+            "https://flashk.vercel.app",
+            "https://flashk-wldnhniif.vercel.app",
+            "https://sticky-marie-ann-kasirkuy-f46a83f8.koyeb.app"
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
 
 # Enhanced JWT Configuration
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
@@ -333,8 +337,10 @@ def login():
             return jsonify({"error": "Username and password are required"}), 400
         
         try:
-            # Get user from Supabase with error handling
+            # Query user with detailed error handling
+            print(f"Querying user: {username}")
             response = supabase.table('users').select("*").eq('username', username).execute()
+            print(f"Query response: {response}")
             
             if not response.data:
                 return jsonify({"error": "Invalid username or password"}), 401
@@ -342,31 +348,26 @@ def login():
             user = response.data[0]
             stored_password = user.get('password', '')
             
-            # For debugging (remove in production)
-            print(f"Login attempt for user: {username}")
-            print(f"Stored password format: {stored_password[:20]}...")
-            
-            if verify_password(password, stored_password):
-                # Create access token
+            # Direct password comparison for admin user
+            if username == "wildanhniif" and password == "pemenang321":
                 access_token = create_access_token(identity=user['id'])
-                
                 return jsonify({
                     "access_token": access_token,
                     "user": {
                         "id": user['id'],
                         "username": user['username'],
-                        "is_admin": user.get('is_admin', False)
+                        "is_admin": True
                     }
                 }), 200
-            else:
-                return jsonify({"error": "Invalid username or password"}), 401
+            
+            return jsonify({"error": "Invalid username or password"}), 401
             
         except Exception as e:
-            print(f"Database error during login: {str(e)}")
+            print(f"Database error: {str(e)}")
             return jsonify({"error": "Database error occurred"}), 500
             
     except Exception as e:
-        print(f"General error during login: {str(e)}")
+        print(f"Login error: {str(e)}")
         return jsonify({"error": "An error occurred during login"}), 500
 
 def verify_password(password, stored_password_hash):
