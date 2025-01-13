@@ -385,14 +385,19 @@ def login():
         # Direct admin check first
         if username == "wildanhniif" and password == "pemenang321":
             print("Admin login successful")  # Debug log
+            # Get the admin user from database
+            admin_user = get_user_by_username(username)
+            if not admin_user.data:
+                return jsonify({"error": "Admin user not found"}), 500
+                
             access_token = create_access_token(
-                identity="admin",
+                identity=admin_user.data[0]['id'],
                 additional_claims={"is_admin": True}
             )
             return jsonify({
                 "access_token": access_token,
                 "user": {
-                    "id": "admin",
+                    "id": admin_user.data[0]['id'],
                     "username": username,
                     "is_admin": True
                 }
@@ -497,9 +502,21 @@ def record_failed_login(ip_address):
 def get_products():
     try:
         user_id = get_jwt_identity()
-        response = get_products_by_user(user_id)
-        return jsonify({"products": response.data}), 200
+        # Get products with user information
+        response = supabase.from_('products').select('*, users(username)').eq('user_id', user_id).execute()
+        
+        # Format the response
+        products = []
+        for product in response.data:
+            user = product.pop('users', {})
+            products.append({
+                **product,
+                'user_name': user.get('username') if user else None
+            })
+            
+        return jsonify({"products": products}), 200
     except Exception as e:
+        print(f"Error getting products: {str(e)}")  # Debug log
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/products', methods=['POST'])
@@ -508,7 +525,10 @@ def get_products():
 def add_product():
     try:
         user_id = get_jwt_identity()
+        print(f"Adding product for user_id: {user_id}")  # Debug log
+        
         data = request.form.to_dict()
+        print(f"Product data: {data}")  # Debug log
         
         # Validate required fields
         if 'name' not in data or 'price' not in data:
@@ -531,8 +551,10 @@ def add_product():
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(file_path)
                 image_url = f"/api/uploads/{filename}"
+                print(f"Image saved: {image_url}")  # Debug log
         
         # Create product in Supabase
+        print(f"Creating product with user_id: {user_id}")  # Debug log
         response = create_product(
             name=data['name'],
             price=price,
@@ -541,14 +563,17 @@ def add_product():
         )
         
         if not response.data:
+            print("Failed to create product - no data in response")  # Debug log
             return jsonify({"error": "Failed to create product"}), 500
         
+        print(f"Product created successfully: {response.data[0]}")  # Debug log
         return jsonify({
             "message": "Product added successfully",
             "product": response.data[0]
         }), 201
         
     except Exception as e:
+        print(f"Error adding product: {str(e)}")  # Debug log
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/products/<int:product_id>', methods=['PUT'])

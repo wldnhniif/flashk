@@ -242,6 +242,10 @@ export default function Dashboard() {
                         src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${product.image_url}`}
                         alt={product.name}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = '/placeholder.png';
+                        }}
                       />
                     </div>
                   ) : (
