@@ -780,108 +780,121 @@ def generate_receipt():
         pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
         # Create PDF with custom page size and margins
-        page_width = 2.8 * inch  # Even narrower width for a receipt-like feel
-        page_height = 6 * inch  # Shorter height
+        page_width = 3.0 * inch  # Slightly wider for better readability
+        page_height = 7.0 * inch  # Taller to accommodate modern spacing
         doc = SimpleDocTemplate(
             pdf_path,
             pagesize=(page_width, page_height),
-            rightMargin=0.1*inch,
-            leftMargin=0.1*inch,
-            topMargin=0.2*inch,
-            bottomMargin=0.2*inch
+            rightMargin=0.2*inch,
+            leftMargin=0.2*inch,
+            topMargin=0.3*inch,
+            bottomMargin=0.3*inch
         )
 
         # Prepare the story (content)
         story = []
         styles = getSampleStyleSheet()
 
+        # Modern styling with custom colors
+        primary_color = colors.HexColor('#2563eb')  # Modern blue
+        text_color = colors.HexColor('#1f2937')    # Dark gray
+        secondary_color = colors.HexColor('#6b7280')  # Medium gray
+        light_bg = colors.HexColor('#f3f4f6')      # Light gray background
+
         # Custom styles
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
-            fontSize=12,
+            fontSize=14,
             spaceAfter=4,
             alignment=1,
-            textColor=colors.HexColor('#1a237e')
+            textColor=primary_color,
+            fontName='Helvetica-Bold'
         )
 
         subtitle_style = ParagraphStyle(
             'Subtitle',
             parent=styles['Normal'],
-            fontSize=8,
-            spaceAfter=8,
+            fontSize=9,
+            spaceAfter=12,
             alignment=1,
-            textColor=colors.HexColor('#424242')
+            textColor=text_color,
+            fontName='Helvetica'
         )
 
         date_style = ParagraphStyle(
             'DateStyle',
             parent=styles['Normal'],
-            fontSize=7,
-            spaceAfter=8,
+            fontSize=8,
+            spaceAfter=16,
             alignment=1,
-            textColor=colors.HexColor('#616161')
+            textColor=secondary_color,
+            fontName='Helvetica'
         )
 
-        # Add header
+        # Add header with modern spacing
         story.append(Paragraph("KasirKuy", title_style))
         story.append(Paragraph("Sales Receipt", subtitle_style))
         
-        # Add date and time
+        # Add date and time with improved formatting
         current_time = datetime.now()
         date_str = current_time.strftime('%B %d, %Y')
         time_str = current_time.strftime('%I:%M %p')
-        story.append(Paragraph(f"Date: {date_str}<br/>Time: {time_str}", date_style))
+        story.append(Paragraph(f"{date_str} • {time_str}", date_style))
 
-        # Add divider
+        # Add subtle divider
         story.append(HRFlowable(
             width="100%",
             thickness=0.5,
             lineCap='round',
-            color=colors.HexColor('#e0e0e0'),
-            spaceBefore=4,
-            spaceAfter=4
+            color=colors.HexColor('#e5e7eb'),
+            spaceBefore=6,
+            spaceAfter=8
         ))
 
-        # Format price in Indonesian Rupiah
+        # Improved price formatting
         def format_rupiah(amount):
-            return f"Rp {amount:,.0f}"
+            return f"Rp {amount:,.0f}".replace(',', '.')
 
-        # Create table with styling
+        # Modern table styling
         table_style = TableStyle([
             # Header styling
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5f5f5')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#424242')),
+            ('BACKGROUND', (0, 0), (-1, 0), light_bg),
+            ('TEXTCOLOR', (0, 0), (-1, 0), text_color),
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 6),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
-            ('TOPPADDING', (0, 0), (-1, 0), 4),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('TOPPADDING', (0, 0), (-1, 0), 6),
+            ('LINEBELOW', (0, 0), (-1, 0), 0.5, colors.HexColor('#e5e7eb')),
             
             # Content styling
             ('FONTNAME', (0, 1), (-1, -3), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -3), 6),
-            ('ALIGN', (0, 1), (0, -3), 'LEFT'),
-            ('ALIGN', (1, 1), (-1, -3), 'RIGHT'),
-            ('TEXTCOLOR', (0, 1), (-1, -3), colors.HexColor('#424242')),
-            ('BOTTOMPADDING', (0, 1), (-1, -3), 2),
-            ('TOPPADDING', (0, 1), (-1, -3), 2),
+            ('FONTSIZE', (0, 1), (-1, -3), 8),
+            ('ALIGN', (0, 1), (0, -3), 'LEFT'),    # Item names left-aligned
+            ('ALIGN', (1, 1), (1, -3), 'CENTER'),  # Quantities center-aligned
+            ('ALIGN', (2, 1), (-1, -3), 'RIGHT'),  # Prices and totals right-aligned
+            ('TEXTCOLOR', (0, 1), (-1, -3), text_color),
+            ('BOTTOMPADDING', (0, 1), (-1, -3), 4),
+            ('TOPPADDING', (0, 1), (-1, -3), 4),
+            ('GRID', (0, 0), (-1, -2), 0.5, colors.HexColor('#f3f4f6')),
             
             # Total section styling
             ('FONTNAME', (-2, -1), (-1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (-2, -1), (-1, -1), 7),
-            ('TEXTCOLOR', (-2, -1), (-1, -1), colors.HexColor('#1a237e')),
+            ('FONTSIZE', (-2, -1), (-1, -1), 9),
+            ('TEXTCOLOR', (-2, -1), (-1, -1), primary_color),
             ('ALIGN', (-2, -1), (-1, -1), 'RIGHT'),
-            ('LINEABOVE', (-2, -1), (-1, -1), 0.5, colors.HexColor('#e0e0e0')),
-            ('TOPPADDING', (-2, -1), (-1, -1), 4),
+            ('LINEABOVE', (-2, -1), (-1, -1), 1, colors.HexColor('#e5e7eb')),
+            ('TOPPADDING', (-2, -1), (-1, -1), 8),
+            ('BOTTOMPADDING', (-2, -1), (-1, -1), 4),
         ])
 
-        # Prepare table data
+        # Prepare table data with improved formatting
         table_data = [['Item', 'Qty', 'Price', 'Total']]
         for item in items:
             name = item['name']
             if len(name) > 15:  # Truncate long names
-                name = name[:12] + '...'
+                name = name[:13] + '..'
             table_data.append([
                 name,
                 str(item['quantity']),
@@ -889,11 +902,11 @@ def generate_receipt():
                 format_rupiah(item['price'] * item['quantity'])
             ])
         
-        # Add total row
+        # Add total row with improved spacing
         table_data.append(['', '', 'Total:', format_rupiah(total)])
 
-        # Create and style the table with adjusted column widths
-        col_widths = [1.1*inch, 0.3*inch, 0.6*inch, 0.5*inch]
+        # Create and style the table with optimized column widths
+        col_widths = [1.2*inch, 0.3*inch, 0.6*inch, 0.5*inch]
         table = Table(table_data, colWidths=col_widths)
         table.setStyle(table_style)
         story.append(table)
@@ -903,21 +916,26 @@ def generate_receipt():
             width="100%",
             thickness=0.5,
             lineCap='round',
-            color=colors.HexColor('#e0e0e0'),
-            spaceBefore=4,
-            spaceAfter=4
+            color=colors.HexColor('#e5e7eb'),
+            spaceBefore=8,
+            spaceAfter=8
         ))
 
-        # Add footer
+        # Modern footer styling
         footer_style = ParagraphStyle(
             'Footer',
             parent=styles['Normal'],
-            fontSize=6,
+            fontSize=7,
             alignment=1,
-            textColor=colors.HexColor('#757575'),
-            spaceBefore=4
+            textColor=secondary_color,
+            fontName='Helvetica',
+            spaceBefore=4,
+            spaceAfter=2
         )
+        
+        # Add footer with improved spacing
         story.append(Paragraph("Thank you for your purchase!", footer_style))
+        story.append(Spacer(1, 2))
         story.append(Paragraph("Please come again", footer_style))
         
         # Build PDF
