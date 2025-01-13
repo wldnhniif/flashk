@@ -19,7 +19,7 @@ from flask_limiter.util import get_remote_address
 import json
 import re
 from flask_talisman import Talisman
-from supabase import create_client, Client
+from supabase.client import Client, create_client
 import time
 import sys
 
@@ -54,28 +54,33 @@ try:
         
     print(f"Initializing Supabase client with URL: {supabase_url}")
     
-    # Create Supabase client with minimal configuration
-    from supabase import Client, create_client
-    
-    # Initialize without any extra options
-    supabase: Client = create_client(supabase_url, supabase_key)
+    # Initialize with minimal configuration
+    supabase: Client = create_client(
+        supabase_url,
+        supabase_key,
+        options={
+            'headers': {
+                'X-Client-Info': 'supabase-py/2.0.3'
+            }
+        }
+    )
     
     # Test the connection with a simple query
     try:
         test_response = supabase.table('users').select("*").limit(1).execute()
-        print("Users table exists and is accessible")
+        print("Supabase connection successful")
         print(f"Test query response: {test_response}")
     except Exception as test_error:
         print(f"Connection test failed: {str(test_error)}")
         print(f"Error type: {type(test_error)}")
-        print(f"Error details: {test_error.__dict__ if hasattr(test_error, '__dict__') else 'No details available'}")
-        raise  # Re-raise the error to prevent app from starting with bad connection
+        print(f"Error details: {test_error.__dict__ if hasattr(test_error, '__dict__') else {}}")
+        raise
     
 except Exception as e:
     print(f"Error initializing Supabase client: {str(e)}")
     print(f"Error type: {type(e)}")
-    print(f"Error details: {e.__dict__ if hasattr(e, '__dict__') else 'No details available'}")
-    sys.exit(1)  # Exit if we can't initialize Supabase
+    print(f"Error details: {e.__dict__ if hasattr(e, '__dict__') else {}}")
+    sys.exit(1)
 
 # Enable security headers with Talisman
 talisman = Talisman(
