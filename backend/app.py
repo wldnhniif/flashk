@@ -57,12 +57,7 @@ try:
     # Initialize with minimal configuration
     supabase: Client = create_client(
         supabase_url,
-        supabase_key,
-        options={
-            'headers': {
-                'X-Client-Info': 'supabase-py/2.0.3'
-            }
-        }
+        supabase_key
     )
     
     # Test the connection with a simple query
