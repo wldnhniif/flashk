@@ -1,6 +1,5 @@
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, verify_jwt_in_request
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import timedelta, datetime, timezone
@@ -20,12 +19,20 @@ from flask_limiter.util import get_remote_address
 import json
 import re
 from flask_talisman import Talisman
+from supabase import create_client, Client
+import time
 
 # Load environment variables
 load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__)
+
+# Initialize Supabase client
+supabase: Client = create_client(
+    os.getenv('SUPABASE_URL'),
+    os.getenv('SUPABASE_KEY')
+)
 
 # Enable security headers with Talisman
 talisman = Talisman(
@@ -39,7 +46,7 @@ talisman = Talisman(
         'img-src': "'self' data: blob:",
         'script-src': "'self'",
         'style-src': "'self' 'unsafe-inline'",
-        'connect-src': "'self'"
+        'connect-src': "'self' https://*.supabase.co"
     }
 )
 
@@ -61,7 +68,11 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 CORS(app, 
      resources={
          r"/*": {
-             "origins": ["http://localhost:3000"],
+             "origins": [
+                 "http://localhost:3000",
+                 "https://flashk.vercel.app",
+                 "https://flashk-wldnhniif.vercel.app"
+             ],
              "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
              "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
              "supports_credentials": True,
@@ -80,26 +91,8 @@ app.config['JWT_BLACKLIST_ENABLED'] = True
 app.config['JWT_BLACKLIST_TOKEN_CHECKS'] = ['access']
 app.config['PROPAGATE_EXCEPTIONS'] = True
 
-# Database configuration
-if os.getenv('FLASK_ENV') == 'production':
-    app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SQLALCHEMY_POOL_SIZE'] = 10
-    app.config['SQLALCHEMY_MAX_OVERFLOW'] = 20
-    app.config['SQLALCHEMY_POOL_TIMEOUT'] = 30
-else:
-    # Use SQLite for development
-    sqlite_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dev.db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{sqlite_path}'
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-# Initialize extensions
-db = SQLAlchemy()
-jwt = JWTManager()
-
-# Initialize the app with extensions
-db.init_app(app)
-jwt.init_app(app)
+# Initialize JWT
+jwt = JWTManager(app)
 
 # JWT token blocklist
 jwt_blocklist = set()
@@ -169,38 +162,40 @@ def moderate_rate_limit():
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Models
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(120), nullable=False)
-    is_admin = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    products = db.relationship('Product', backref='user', lazy=True, cascade='all, delete-orphan')
-    devices = db.relationship('DeviceRegistration', backref='user', lazy=True, cascade='all, delete-orphan')
+# Helper functions for database operations
+def create_user(username, password, is_admin=False):
+    hashed_password = generate_password_hash(password, method=PASSWORD_HASH_METHOD)
+    data = {
+        'username': username,
+        'password': hashed_password,
+        'is_admin': is_admin,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    return supabase.table('users').insert(data).execute()
 
-class Product(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    price = db.Column(db.Float, nullable=False)
-    image_url = db.Column(db.String(255))
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    variants = db.relationship('ProductVariant', backref='product', lazy=True, cascade='all, delete-orphan')
+def get_user_by_username(username):
+    return supabase.table('users').select('*').eq('username', username).execute()
 
-class ProductVariant(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), nullable=False)  # e.g. "Size", "Color"
-    value = db.Column(db.String(50), nullable=False)  # e.g. "S", "M", "L" or "Red", "Blue"
-    price_adjustment = db.Column(db.Float, default=0.0)  # Additional price for this variant
-    product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+def get_user_by_id(user_id):
+    return supabase.table('users').select('*').eq('id', user_id).execute()
 
-class DeviceRegistration(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    device_id = db.Column(db.String(255), unique=True, nullable=False)
-    ip_address = db.Column(db.String(45), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+def create_product(name, price, image_url, user_id):
+    data = {
+        'name': name,
+        'price': price,
+        'image_url': image_url,
+        'user_id': user_id
+    }
+    return supabase.table('products').insert(data).execute()
+
+def get_products_by_user(user_id):
+    return supabase.table('products').select('*').eq('user_id', user_id).execute()
+
+def update_product(product_id, data):
+    return supabase.table('products').update(data).eq('id', product_id).execute()
+
+def delete_product(product_id):
+    return supabase.table('products').delete().eq('id', product_id).execute()
 
 # Admin middleware
 def admin_required():
@@ -209,8 +204,9 @@ def admin_required():
         def decorator(*args, **kwargs):
             verify_jwt_in_request()
             user_id = get_jwt_identity()
-            user = User.query.get(user_id)
-            if not user or not user.is_admin:
+            response = get_user_by_id(user_id)
+            user = response.data[0] if response.data else None
+            if not user or not user['is_admin']:
                 return jsonify({"error": "Admin access required"}), 403
             return fn(*args, **kwargs)
         return decorator
@@ -256,144 +252,128 @@ def is_password_valid(password):
 @strict_rate_limit()
 def register():
     data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
-
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    
+    # Validate input
     if not username or not password:
-        return jsonify({'error': 'Username and password are required'}), 400
-
+        return jsonify({"error": "Username and password are required"}), 400
+    
+    # Check username length
+    if len(username) < 3 or len(username) > 50:
+        return jsonify({"error": "Username must be between 3 and 50 characters"}), 400
+    
     # Validate password
     is_valid, message = is_password_valid(password)
     if not is_valid:
-        return jsonify({'error': message}), 400
-
-    # Get device fingerprint
-    device_id, ip_address = get_device_fingerprint()
-
-    # Check if device already registered
-    existing_device = DeviceRegistration.query.filter_by(device_id=device_id).first()
-    if existing_device:
-        return jsonify({'error': 'An account has already been registered from this device'}), 400
-
-    # Check if IP has too many registrations
-    ip_registrations = DeviceRegistration.query.filter_by(ip_address=ip_address).count()
-    if ip_registrations >= 3:  # Limit to 3 accounts per IP
-        return jsonify({'error': 'Too many accounts registered from this IP address'}), 400
-
+        return jsonify({"error": message}), 400
+    
+    # Check if username exists
+    existing_user = get_user_by_username(username)
+    if existing_user.data:
+        return jsonify({"error": "Username already exists"}), 409
+    
     try:
-        # Check if username already exists
-        if User.query.filter_by(username=username).first():
-            return jsonify({'error': 'Username already exists'}), 400
-
-        # Create new user with Werkzeug password hashing
-        hashed_password = generate_password_hash(password, method='pbkdf2:sha256:600000')
-        new_user = User(username=username, password=hashed_password)
-        db.session.add(new_user)
-        db.session.flush()
-
-        # Register device
-        new_device = DeviceRegistration(
-            device_id=device_id,
-            ip_address=ip_address,
-            user_id=new_user.id
-        )
-        db.session.add(new_device)
-        db.session.commit()
-
+        # Create user in Supabase
+        response = create_user(username, password)
+        if not response.data:
+            return jsonify({"error": "Failed to create user"}), 500
+        
+        user = response.data[0]
+        # Create access token
+        access_token = create_access_token(identity=user['id'])
+        
         return jsonify({
-            'message': 'Registration successful',
-            'user': {
-                'id': new_user.id,
-                'username': new_user.username,
-                'is_admin': new_user.is_admin
+            "message": "User registered successfully",
+            "access_token": access_token,
+            "user": {
+                "id": user['id'],
+                "username": user['username'],
+                "is_admin": user['is_admin']
             }
         }), 201
-
+        
     except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 400
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/login', methods=['POST'])
 @strict_rate_limit()
 def login():
-    try:
-        data = request.get_json()
-        username = data.get('username')
-        password = data.get('password')
-
-        if not username or not password:
-            return jsonify({'error': 'Username and password are required'}), 400
-
-        # Check if user is locked out
-        ip_address = request.remote_addr
-        if ip_address in FAILED_LOGIN_ATTEMPTS:
-            attempts = FAILED_LOGIN_ATTEMPTS[ip_address]
-            if attempts['count'] >= MAX_FAILED_ATTEMPTS:
-                time_passed = datetime.now(timezone.utc).timestamp() - attempts['timestamp']
-                if time_passed < LOCKOUT_TIME:
-                    return jsonify({
-                        'error': f'Account locked. Try again in {int((LOCKOUT_TIME - time_passed) / 60)} minutes'
-                    }), 429
-
-        user = User.query.filter_by(username=username).first()
-        if not user:
-            # Record failed attempt
-            record_failed_login(ip_address)
-            return jsonify({'error': 'Invalid credentials'}), 401
-
-        if check_password_hash(user.password, password):
-            # Reset failed attempts on successful login
-            if ip_address in FAILED_LOGIN_ATTEMPTS:
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    
+    if not username or not password:
+        return jsonify({"error": "Username and password are required"}), 400
+    
+    # Get IP address for rate limiting
+    ip_address = request.remote_addr
+    
+    # Check if user is locked out
+    if ip_address in FAILED_LOGIN_ATTEMPTS:
+        attempts, lockout_time = FAILED_LOGIN_ATTEMPTS[ip_address]
+        if attempts >= MAX_FAILED_ATTEMPTS:
+            time_remaining = lockout_time + LOCKOUT_TIME - time.time()
+            if time_remaining > 0:
+                return jsonify({
+                    "error": f"Too many failed attempts. Please try again in {int(time_remaining)} seconds"
+                }), 429
+            else:
+                # Reset attempts if lockout time has passed
                 del FAILED_LOGIN_ATTEMPTS[ip_address]
-
-            access_token = create_access_token(identity=str(user.id))
-            return jsonify({
-                'token': access_token,
-                'user_id': user.id,
-                'username': user.username,
-                'is_admin': user.is_admin
-            }), 200
+    
+    try:
+        # Get user from Supabase
+        response = get_user_by_username(username)
+        if not response.data:
+            record_failed_login(ip_address)
+            return jsonify({"error": "Invalid username or password"}), 401
         
-        # Record failed attempt
-        record_failed_login(ip_address)
-        return jsonify({'error': 'Invalid credentials'}), 401
-
+        user = response.data[0]
+        
+        # Verify password
+        if not check_password_hash(user['password'], password):
+            record_failed_login(ip_address)
+            return jsonify({"error": "Invalid username or password"}), 401
+        
+        # Reset failed attempts on successful login
+        if ip_address in FAILED_LOGIN_ATTEMPTS:
+            del FAILED_LOGIN_ATTEMPTS[ip_address]
+        
+        # Create access token
+        access_token = create_access_token(identity=user['id'])
+        
+        return jsonify({
+            "access_token": access_token,
+            "user": {
+                "id": user['id'],
+                "username": user['username'],
+                "is_admin": user['is_admin']
+            }
+        }), 200
+        
     except Exception as e:
-        print(f"Login error: {str(e)}")
-        return jsonify({'error': 'An error occurred during login'}), 500
+        return jsonify({"error": str(e)}), 500
 
 def record_failed_login(ip_address):
     """Record failed login attempt and update lockout status"""
-    now = datetime.now(timezone.utc).timestamp()
+    current_time = time.time()
     if ip_address in FAILED_LOGIN_ATTEMPTS:
-        # Reset if lockout period has passed
-        time_passed = now - FAILED_LOGIN_ATTEMPTS[ip_address]['timestamp']
-        if time_passed >= LOCKOUT_TIME:
-            FAILED_LOGIN_ATTEMPTS[ip_address] = {'count': 1, 'timestamp': now}
-        else:
-            FAILED_LOGIN_ATTEMPTS[ip_address]['count'] += 1
-            FAILED_LOGIN_ATTEMPTS[ip_address]['timestamp'] = now
+        attempts, _ = FAILED_LOGIN_ATTEMPTS[ip_address]
+        FAILED_LOGIN_ATTEMPTS[ip_address] = (attempts + 1, current_time)
     else:
-        FAILED_LOGIN_ATTEMPTS[ip_address] = {'count': 1, 'timestamp': now}
+        FAILED_LOGIN_ATTEMPTS[ip_address] = (1, current_time)
 
 @app.route('/api/products', methods=['GET'])
 @jwt_required()
 @moderate_rate_limit()
 def get_products():
-    user_id = get_jwt_identity()
-    products = Product.query.filter_by(user_id=user_id).all()
-    return jsonify([{
-        'id': p.id,
-        'name': p.name,
-        'price': p.price,
-        'image_url': p.image_url,
-        'variants': [{
-            'id': v.id,
-            'name': v.name,
-            'value': v.value,
-            'price_adjustment': v.price_adjustment
-        } for v in p.variants]
-    } for p in products])
+    try:
+        user_id = get_jwt_identity()
+        response = get_products_by_user(user_id)
+        return jsonify({"products": response.data}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/products', methods=['POST'])
 @jwt_required()
@@ -401,76 +381,48 @@ def get_products():
 def add_product():
     try:
         user_id = get_jwt_identity()
+        data = request.form.to_dict()
+        
+        # Validate required fields
+        if 'name' not in data or 'price' not in data:
+            return jsonify({"error": "Name and price are required"}), 400
+        
+        # Validate price
+        try:
+            price = float(data['price'])
+            if price < 0:
+                return jsonify({"error": "Price cannot be negative"}), 400
+        except ValueError:
+            return jsonify({"error": "Invalid price format"}), 400
         
         # Handle image upload
         image_url = None
         if 'image' in request.files:
             file = request.files['image']
             if file and allowed_file(file.filename):
-                filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
+                filename = secure_filename(str(uuid.uuid4()) + '_' + file.filename)
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(file_path)
                 image_url = f"/api/uploads/{filename}"
-
-        # Handle product data
-        if 'name' not in request.form or 'price' not in request.form:
-            return jsonify({'error': 'Name and price are required'}), 400
-
-        name = request.form.get('name')
-        try:
-            price = float(request.form.get('price'))
-        except ValueError:
-            return jsonify({'error': 'Price must be a valid number'}), 400
-
-        if not name:
-            return jsonify({'error': 'Name cannot be empty'}), 400
-        if price < 0:
-            return jsonify({'error': 'Price cannot be negative'}), 400
-
-        new_product = Product(
-            name=name,
+        
+        # Create product in Supabase
+        response = create_product(
+            name=data['name'],
             price=price,
             image_url=image_url,
-            user_id=int(user_id)
+            user_id=user_id
         )
         
-        # Handle variants if provided
-        variants_data = request.form.get('variants')
-        if variants_data:
-            try:
-                variants = json.loads(variants_data)
-                for variant in variants:
-                    new_variant = ProductVariant(
-                        name=variant['name'],
-                        value=variant['value'],
-                        price_adjustment=float(variant.get('price_adjustment', 0.0))
-                    )
-                    new_product.variants.append(new_variant)
-            except (json.JSONDecodeError, KeyError) as e:
-                return jsonify({'error': 'Invalid variants data format'}), 400
-            except ValueError:
-                return jsonify({'error': 'Invalid price adjustment value'}), 400
-
-        db.session.add(new_product)
-        db.session.commit()
-
+        if not response.data:
+            return jsonify({"error": "Failed to create product"}), 500
+        
         return jsonify({
-            'id': new_product.id,
-            'name': new_product.name,
-            'price': new_product.price,
-            'image_url': new_product.image_url,
-            'variants': [{
-                'id': v.id,
-                'name': v.name,
-                'value': v.value,
-                'price_adjustment': v.price_adjustment
-            } for v in new_product.variants]
+            "message": "Product added successfully",
+            "product": response.data[0]
         }), 201
-
+        
     except Exception as e:
-        print(f"Error adding product: {str(e)}")
-        db.session.rollback()
-        return jsonify({'error': 'Failed to add product'}), 500
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/products/<int:product_id>', methods=['PUT'])
 @jwt_required()
@@ -478,83 +430,62 @@ def add_product():
 def update_product(product_id):
     try:
         user_id = get_jwt_identity()
-        product = Product.query.filter_by(id=product_id, user_id=user_id).first()
-        if not product:
-            return jsonify({'error': 'Product not found'}), 404
-
-        # Handle image upload
+        
+        # Check if product exists and belongs to user
+        product_response = supabase.table('products').select('*').eq('id', product_id).eq('user_id', user_id).execute()
+        if not product_response.data:
+            return jsonify({"error": "Product not found or unauthorized"}), 404
+        
+        data = request.form.to_dict()
+        update_data = {}
+        
+        # Update name if provided
+        if 'name' in data:
+            update_data['name'] = data['name']
+        
+        # Update price if provided
+        if 'price' in data:
+            try:
+                price = float(data['price'])
+                if price < 0:
+                    return jsonify({"error": "Price cannot be negative"}), 400
+                update_data['price'] = price
+            except ValueError:
+                return jsonify({"error": "Invalid price format"}), 400
+        
+        # Handle image update
         if 'image' in request.files:
             file = request.files['image']
             if file and allowed_file(file.filename):
-                # Remove old image if exists
-                if product.image_url:
-                    old_filename = product.image_url.split('/')[-1]
+                # Delete old image if exists
+                old_image = product_response.data[0].get('image_url')
+                if old_image:
+                    old_filename = old_image.split('/')[-1]
                     old_path = os.path.join(app.config['UPLOAD_FOLDER'], old_filename)
                     if os.path.exists(old_path):
                         os.remove(old_path)
                 
                 # Save new image
-                filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
+                filename = secure_filename(str(uuid.uuid4()) + '_' + file.filename)
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(file_path)
-                product.image_url = f"/api/uploads/{filename}"
-
-        # Update other fields
-        if 'name' in request.form:
-            name = request.form.get('name')
-            if not name:
-                return jsonify({'error': 'Name cannot be empty'}), 400
-            product.name = name
-
-        if 'price' in request.form:
-            try:
-                price = float(request.form.get('price'))
-                if price < 0:
-                    return jsonify({'error': 'Price cannot be negative'}), 400
-                product.price = price
-            except ValueError:
-                return jsonify({'error': 'Price must be a valid number'}), 400
-
-        # Update variants if provided
-        variants_data = request.form.get('variants')
-        if variants_data:
-            try:
-                variants = json.loads(variants_data)
-                # Remove existing variants
-                for variant in product.variants:
-                    db.session.delete(variant)
-                # Add new variants
-                for variant in variants:
-                    new_variant = ProductVariant(
-                        name=variant['name'],
-                        value=variant['value'],
-                        price_adjustment=float(variant.get('price_adjustment', 0.0))
-                    )
-                    product.variants.append(new_variant)
-            except (json.JSONDecodeError, KeyError) as e:
-                return jsonify({'error': 'Invalid variants data format'}), 400
-            except ValueError:
-                return jsonify({'error': 'Invalid price adjustment value'}), 400
-
-        db.session.commit()
-
-        return jsonify({
-            'id': product.id,
-            'name': product.name,
-            'price': product.price,
-            'image_url': product.image_url,
-            'variants': [{
-                'id': v.id,
-                'name': v.name,
-                'value': v.value,
-                'price_adjustment': v.price_adjustment
-            } for v in product.variants]
-        })
-
+                update_data['image_url'] = f"/api/uploads/{filename}"
+        
+        # Update product in Supabase
+        if update_data:
+            response = update_product(product_id, update_data)
+            if not response.data:
+                return jsonify({"error": "Failed to update product"}), 500
+            
+            return jsonify({
+                "message": "Product updated successfully",
+                "product": response.data[0]
+            }), 200
+        else:
+            return jsonify({"message": "No changes to update"}), 200
+        
     except Exception as e:
-        print(f"Error updating product: {str(e)}")
-        db.session.rollback()
-        return jsonify({'error': 'Failed to update product'}), 500
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/products/<int:product_id>', methods=['DELETE'])
 @jwt_required()
@@ -562,25 +493,29 @@ def update_product(product_id):
 def delete_product(product_id):
     try:
         user_id = get_jwt_identity()
-        product = Product.query.filter_by(id=product_id, user_id=user_id).first()
-        if not product:
-            return jsonify({'error': 'Product not found'}), 404
-
-        # Remove image file if exists
-        if product.image_url:
-            filename = product.image_url.split('/')[-1]
+        
+        # Check if product exists and belongs to user
+        product_response = supabase.table('products').select('*').eq('id', product_id).eq('user_id', user_id).execute()
+        if not product_response.data:
+            return jsonify({"error": "Product not found or unauthorized"}), 404
+        
+        # Delete image if exists
+        product = product_response.data[0]
+        if product.get('image_url'):
+            filename = product['image_url'].split('/')[-1]
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             if os.path.exists(file_path):
                 os.remove(file_path)
-
-        db.session.delete(product)
-        db.session.commit()
-        return jsonify({'message': 'Product deleted successfully'})
-
+        
+        # Delete product from Supabase
+        response = delete_product(product_id)
+        if not response.data:
+            return jsonify({"error": "Failed to delete product"}), 500
+        
+        return jsonify({"message": "Product deleted successfully"}), 200
+        
     except Exception as e:
-        print(f"Error deleting product: {str(e)}")
-        db.session.rollback()
-        return jsonify({'error': 'Failed to delete product'}), 500
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/uploads/<filename>')
 def uploaded_file(filename):
@@ -762,14 +697,16 @@ def generate_receipt():
 @admin_required()
 @moderate_rate_limit()
 def get_all_users():
-    users = User.query.all()
-    return jsonify([{
-        'id': u.id,
-        'username': u.username,
-        'is_admin': u.is_admin,
-        'created_at': u.created_at.isoformat(),
-        'products_count': len(u.products)
-    } for u in users])
+    try:
+        response = supabase.table('users').select('*').execute()
+        return jsonify([{
+            'id': u['id'],
+            'username': u['username'],
+            'is_admin': u['is_admin'],
+            'created_at': u['created_at']
+        } for u in response.data]), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/admin/users', methods=['POST'])
 @admin_required()
@@ -784,23 +721,25 @@ def add_user():
         if not username or not password:
             return jsonify({'error': 'Username and password are required'}), 400
 
-        if User.query.filter_by(username=username).first():
-            return jsonify({'error': 'Username already exists'}), 400
+        # Check if username exists
+        existing_user = get_user_by_username(username)
+        if existing_user.data:
+            return jsonify({'error': 'Username already exists'}), 409
 
-        hashed_password = generate_password_hash(password)
-        new_user = User(username=username, password=hashed_password, is_admin=is_admin)
-        db.session.add(new_user)
-        db.session.commit()
+        # Create user in Supabase
+        response = create_user(username, password, is_admin)
+        if not response.data:
+            return jsonify({'error': 'Failed to create user'}), 500
 
+        user = response.data[0]
         return jsonify({
-            'id': new_user.id,
-            'username': new_user.username,
-            'is_admin': new_user.is_admin,
-            'products_count': 0,
-            'created_at': new_user.created_at.isoformat()
+            'id': user['id'],
+            'username': user['username'],
+            'is_admin': user['is_admin'],
+            'created_at': user['created_at']
         }), 201
+
     except Exception as e:
-        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/admin/users/<int:user_id>', methods=['PUT'])
@@ -808,33 +747,36 @@ def add_user():
 @moderate_rate_limit()
 def update_user(user_id):
     try:
-        user = User.query.get(user_id)
-        if not user:
+        data = request.get_json()
+        update_data = {}
+
+        # Check if user exists
+        user_response = get_user_by_id(user_id)
+        if not user_response.data:
             return jsonify({'error': 'User not found'}), 404
 
-        data = request.get_json()
-        if 'username' in data and data['username'] != user.username:
-            if User.query.filter_by(username=data['username']).first():
-                return jsonify({'error': 'Username already exists'}), 400
-            user.username = data['username']
+        if 'username' in data:
+            existing = get_user_by_username(data['username'])
+            if existing.data and existing.data[0]['id'] != user_id:
+                return jsonify({'error': 'Username already exists'}), 409
+            update_data['username'] = data['username']
 
         if 'password' in data and data['password']:
-            user.password = generate_password_hash(data['password'])
+            update_data['password'] = generate_password_hash(data['password'], method=PASSWORD_HASH_METHOD)
 
         if 'is_admin' in data:
-            user.is_admin = data['is_admin']
+            update_data['is_admin'] = data['is_admin']
 
-        db.session.commit()
+        if update_data:
+            response = supabase.table('users').update(update_data).eq('id', user_id).execute()
+            if not response.data:
+                return jsonify({'error': 'Failed to update user'}), 500
+            
+            return jsonify(response.data[0]), 200
+        
+        return jsonify({'message': 'No changes to update'}), 200
 
-        return jsonify({
-            'id': user.id,
-            'username': user.username,
-            'is_admin': user.is_admin,
-            'products_count': len(user.products),
-            'created_at': user.created_at.isoformat()
-        })
     except Exception as e:
-        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
@@ -842,159 +784,43 @@ def update_user(user_id):
 @moderate_rate_limit()
 def delete_user(user_id):
     try:
-        user = User.query.get(user_id)
-        if not user:
+        # Check if user exists
+        user_response = get_user_by_id(user_id)
+        if not user_response.data:
             return jsonify({'error': 'User not found'}), 404
 
+        user = user_response.data[0]
+        
         # Don't allow deleting the last admin
-        if user.is_admin and User.query.filter_by(is_admin=True).count() <= 1:
+        admins_response = supabase.table('users').select('id').eq('is_admin', True).execute()
+        if user['is_admin'] and len(admins_response.data) <= 1:
             return jsonify({'error': 'Cannot delete the last admin user'}), 400
 
-        # The cascade will automatically handle deleting related products and device registrations
-        db.session.delete(user)
-        db.session.commit()
+        # Delete user from Supabase
+        response = supabase.table('users').delete().eq('id', user_id).execute()
+        if not response.data:
+            return jsonify({'error': 'Failed to delete user'}), 500
 
-        return jsonify({'message': 'User deleted successfully'})
+        return jsonify({'message': 'User deleted successfully'}), 200
+
     except Exception as e:
-        db.session.rollback()
-        print(f"Error deleting user: {str(e)}")  # Add debug logging
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/admin/products', methods=['GET'])
 @admin_required()
 @moderate_rate_limit()
 def get_all_products():
-    products = Product.query.all()
-    return jsonify([{
-        'id': p.id,
-        'name': p.name,
-        'price': p.price,
-        'image_url': p.image_url,
-        'user_id': p.user_id,
-        'user_name': p.user.username
-    } for p in products])
-
-@app.route('/api/admin/products', methods=['POST'])
-@admin_required()
-@moderate_rate_limit()
-def add_product_admin():
     try:
-        data = request.get_json()
-        name = data.get('name')
-        price = data.get('price')
-        user_id = data.get('user_id')
-
-        if not all([name, price, user_id]):
-            return jsonify({'error': 'Name, price, and user_id are required'}), 400
-
-        if not User.query.get(user_id):
-            return jsonify({'error': 'User not found'}), 404
-
-        try:
-            price = float(price)
-            if price < 0:
-                return jsonify({'error': 'Price must be non-negative'}), 400
-        except ValueError:
-            return jsonify({'error': 'Invalid price format'}), 400
-
-        new_product = Product(name=name, price=price, user_id=user_id)
-        db.session.add(new_product)
-        db.session.commit()
-
-        return jsonify({
-            'id': new_product.id,
-            'name': new_product.name,
-            'price': new_product.price,
-            'user_id': new_product.user_id,
-            'user_name': User.query.get(new_product.user_id).username,
-            'image_url': new_product.image_url
-        }), 201
+        response = supabase.table('products').select('*').execute()
+        return jsonify(response.data), 200
     except Exception as e:
-        db.session.rollback()
         return jsonify({'error': str(e)}), 500
-
-@app.route('/api/admin/products/<int:product_id>', methods=['PUT'])
-@admin_required()
-@moderate_rate_limit()
-def update_product_admin(product_id):
-    try:
-        product = Product.query.get(product_id)
-        if not product:
-            return jsonify({'error': 'Product not found'}), 404
-
-        data = request.get_json()
-        if 'name' in data:
-            product.name = data['name']
-        if 'price' in data:
-            try:
-                price = float(data['price'])
-                if price < 0:
-                    return jsonify({'error': 'Price must be non-negative'}), 400
-                product.price = price
-            except ValueError:
-                return jsonify({'error': 'Invalid price format'}), 400
-        if 'user_id' in data:
-            if not User.query.get(data['user_id']):
-                return jsonify({'error': 'User not found'}), 404
-            product.user_id = data['user_id']
-
-        db.session.commit()
-
-        return jsonify({
-            'id': product.id,
-            'name': product.name,
-            'price': product.price,
-            'user_id': product.user_id,
-            'user_name': User.query.get(product.user_id).username,
-            'image_url': product.image_url
-        })
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/admin/products/<int:product_id>', methods=['DELETE'])
-@admin_required()
-@moderate_rate_limit()
-def delete_product_admin(product_id):
-    try:
-        product = Product.query.get(product_id)
-        if not product:
-            return jsonify({'error': 'Product not found'}), 404
-
-        # Delete associated image if exists
-        if product.image_url:
-            filename = product.image_url.split('/')[-1]
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            if os.path.exists(file_path):
-                os.remove(file_path)
-
-        db.session.delete(product)
-        db.session.commit()
-
-        return jsonify({'message': 'Product deleted successfully'})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/admin/transactions', methods=['GET'])
-@admin_required()
-def get_all_transactions():
-    # For now, return an empty list since we haven't implemented transactions yet
-    return jsonify([])
-
-# Add cleanup function for expired device registrations (optional)
-@app.cli.command('cleanup-devices')
-def cleanup_devices():
-    """Clean up device registrations older than 30 days"""
-    expiry_date = datetime.now(timezone.utc) - timedelta(days=30)
-    DeviceRegistration.query.filter(DeviceRegistration.created_at < expiry_date).delete()
-    db.session.commit()
 
 # Add request logging
 @app.after_request
 def after_request(response):
     if request.path.startswith('/api/'):
-        app.logger.info(
+        print(
             f"[{datetime.now()}] {request.remote_addr} {request.method} "
             f"{request.path} {response.status_code}"
         )
@@ -1003,20 +829,20 @@ def after_request(response):
 # Add error logging
 @app.errorhandler(Exception)
 def handle_error(error):
-    app.logger.error(f"Error: {str(error)}", exc_info=True)
+    print(f"Error: {str(error)}")
     return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()  # Create database tables
-        
-        # Create default admin user if none exists
-        admin_user = User.query.filter_by(username='wildanhniif').first()
-        if not admin_user:
-            hashed_password = generate_password_hash('pemenang321')
-            admin_user = User(username='wildanhniif', password=hashed_password, is_admin=True)
-            db.session.add(admin_user)
-            db.session.commit()
-            print("Default admin user created - Username: wildanhniif, Password: pemenang321")
+    # Create default admin user if none exists
+    try:
+        admin_user = get_user_by_username('wildanhniif')
+        if not admin_user.data:
+            response = create_user('wildanhniif', 'pemenang321', is_admin=True)
+            if response.data:
+                print("Default admin user created - Username: wildanhniif, Password: pemenang321")
+            else:
+                print("Failed to create default admin user")
+    except Exception as e:
+        print(f"Error creating default admin: {str(e)}")
             
     app.run(debug=True) 
