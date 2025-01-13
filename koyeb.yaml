@@ -5,11 +5,14 @@ app:
   services:
     - name: backend
       instance_type: free
+      cpus: 0.25
+      memory: 512
       git:
         repository: https://github.com/wldnhniif/flashk.git
         branch: main
       build:
         builder: python
+        python_version: "3.11"
         buildCommand: cd backend && pip install -r requirements.txt
         workdir: /backend
       run:
