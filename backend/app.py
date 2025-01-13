@@ -90,11 +90,16 @@ JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 3600))  # 1
 PASSWORD_HASH_METHOD = 'pbkdf2:sha256:600000'  # Strong password hashing
 
 # Configure upload folder
-UPLOAD_FOLDER = 'uploads'
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+# Create upload folder if it doesn't exist
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
+    print(f"Created upload folder at: {UPLOAD_FOLDER}")
+
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+print(f"Upload folder configured at: {UPLOAD_FOLDER}")
 
 # More permissive CORS settings
 CORS(app, resources={
@@ -525,16 +530,14 @@ def get_products():
 def add_product():
     try:
         user_id = get_jwt_identity()
-        print(f"Adding product for user_id: {user_id}")  # Debug log
+        print(f"Adding product for user_id: {user_id}")
         
         data = request.form.to_dict()
-        print(f"Product data: {data}")  # Debug log
+        print(f"Product data: {data}")
         
-        # Validate required fields
         if 'name' not in data or 'price' not in data:
             return jsonify({"error": "Name and price are required"}), 400
         
-        # Validate price
         try:
             price = float(data['price'])
             if price < 0:
@@ -542,7 +545,6 @@ def add_product():
         except ValueError:
             return jsonify({"error": "Invalid price format"}), 400
         
-        # Handle image upload
         image_url = None
         if 'image' in request.files:
             file = request.files['image']
@@ -551,10 +553,8 @@ def add_product():
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(file_path)
                 image_url = f"/api/uploads/{filename}"
-                print(f"Image saved: {image_url}")  # Debug log
+                print(f"Image saved: {image_url}")
         
-        # Create product in Supabase
-        print(f"Creating product with user_id: {user_id}")  # Debug log
         response = create_product(
             name=data['name'],
             price=price,
@@ -563,17 +563,23 @@ def add_product():
         )
         
         if not response.data:
-            print("Failed to create product - no data in response")  # Debug log
+            if image_url:  # Clean up the uploaded image if product creation fails
+                filename = image_url.split('/')[-1]
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
             return jsonify({"error": "Failed to create product"}), 500
         
-        print(f"Product created successfully: {response.data[0]}")  # Debug log
+        # Clean up unused images after successful product creation
+        cleanup_old_images()
+        
         return jsonify({
             "message": "Product added successfully",
             "product": response.data[0]
         }), 201
         
     except Exception as e:
-        print(f"Error adding product: {str(e)}")  # Debug log
+        print(f"Error adding product: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/products/<int:product_id>', methods=['PUT'])
@@ -591,11 +597,9 @@ def update_product(product_id):
         data = request.form.to_dict()
         update_data = {}
         
-        # Update name if provided
         if 'name' in data:
             update_data['name'] = data['name']
         
-        # Update price if provided
         if 'price' in data:
             try:
                 price = float(data['price'])
@@ -605,17 +609,12 @@ def update_product(product_id):
             except ValueError:
                 return jsonify({"error": "Invalid price format"}), 400
         
-        # Handle image update
+        old_image_url = None
         if 'image' in request.files:
             file = request.files['image']
             if file and allowed_file(file.filename):
-                # Delete old image if exists
-                old_image = product_response.data[0].get('image_url')
-                if old_image:
-                    old_filename = old_image.split('/')[-1]
-                    old_path = os.path.join(app.config['UPLOAD_FOLDER'], old_filename)
-                    if os.path.exists(old_path):
-                        os.remove(old_path)
+                # Store old image URL for cleanup
+                old_image_url = product_response.data[0].get('image_url')
                 
                 # Save new image
                 filename = secure_filename(str(uuid.uuid4()) + '_' + file.filename)
@@ -623,11 +622,26 @@ def update_product(product_id):
                 file.save(file_path)
                 update_data['image_url'] = f"/api/uploads/{filename}"
         
-        # Update product in Supabase
         if update_data:
-            response = update_product(product_id, update_data)
+            response = supabase.from_('products').update(update_data).eq('id', product_id).execute()
             if not response.data:
+                # If update fails, clean up the newly uploaded image
+                if 'image_url' in update_data:
+                    filename = update_data['image_url'].split('/')[-1]
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
                 return jsonify({"error": "Failed to update product"}), 500
+            
+            # If update succeeds and we uploaded a new image, clean up the old one
+            if old_image_url:
+                old_filename = old_image_url.split('/')[-1]
+                old_path = os.path.join(app.config['UPLOAD_FOLDER'], old_filename)
+                if os.path.exists(old_path):
+                    os.remove(old_path)
+            
+            # Clean up any other unused images
+            cleanup_old_images()
             
             return jsonify({
                 "message": "Product updated successfully",
@@ -651,18 +665,24 @@ def delete_product(product_id):
         if not product_response.data:
             return jsonify({"error": "Product not found or unauthorized"}), 404
         
-        # Delete image if exists
+        # Store image URL for cleanup
         product = product_response.data[0]
-        if product.get('image_url'):
-            filename = product['image_url'].split('/')[-1]
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            if os.path.exists(file_path):
-                os.remove(file_path)
+        image_url = product.get('image_url')
         
         # Delete product from Supabase
         response = delete_product(product_id)
         if not response.data:
             return jsonify({"error": "Failed to delete product"}), 500
+        
+        # Clean up the product's image if it exists
+        if image_url:
+            filename = image_url.split('/')[-1]
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        
+        # Clean up any other unused images
+        cleanup_old_images()
         
         return jsonify({"message": "Product deleted successfully"}), 200
         
@@ -671,7 +691,14 @@ def delete_product(product_id):
 
 @app.route('/api/uploads/<filename>')
 def uploaded_file(filename):
-    return send_file(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+    try:
+        response = send_file(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        # Add CORS headers
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+    except Exception as e:
+        print(f"Error serving file {filename}: {str(e)}")
+        return jsonify({"error": "File not found"}), 404
 
 @app.route('/api/generate-receipt', methods=['POST'])
 @jwt_required()
@@ -850,12 +877,14 @@ def generate_receipt():
 @moderate_rate_limit()
 def get_all_users():
     try:
-        response = supabase.from_('users').select('*').execute()
+        # Get users with their product counts
+        response = supabase.from_('users').select('*, products(count)').execute()
         return jsonify([{
             'id': u['id'],
             'username': u['username'],
             'is_admin': u['is_admin'],
-            'created_at': u['created_at']
+            'created_at': u['created_at'],
+            'products_count': len(u.get('products', [])) if u.get('products') else 0
         } for u in response.data]), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -979,6 +1008,34 @@ def get_all_products():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/admin/products/<int:product_id>', methods=['DELETE'])
+@admin_required()
+@moderate_rate_limit()
+def admin_delete_product(product_id):
+    try:
+        # Check if product exists
+        product_response = supabase.from_('products').select('*').eq('id', product_id).execute()
+        if not product_response.data:
+            return jsonify({"error": "Product not found"}), 404
+        
+        # Delete image if exists
+        product = product_response.data[0]
+        if product.get('image_url'):
+            filename = product['image_url'].split('/')[-1]
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        
+        # Delete product from Supabase
+        response = delete_product(product_id)
+        if not response.data:
+            return jsonify({"error": "Failed to delete product"}), 500
+        
+        return jsonify({"message": "Product deleted successfully"}), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # Add request logging
 @app.after_request
 def after_request(response):
@@ -994,6 +1051,32 @@ def after_request(response):
 def handle_error(error):
     print(f"Error: {str(error)}")
     return jsonify({'error': 'Internal server error'}), 500
+
+# Add this function near the other helper functions
+def cleanup_old_images():
+    """Clean up unused images from the upload folder"""
+    try:
+        # Get all products with images
+        response = supabase.from_('products').select('image_url').execute()
+        active_images = set()
+        
+        # Collect all active image filenames
+        for product in response.data:
+            if product.get('image_url'):
+                filename = product['image_url'].split('/')[-1]
+                active_images.add(filename)
+        
+        # Check upload folder and remove unused images
+        for filename in os.listdir(UPLOAD_FOLDER):
+            if filename not in active_images and allowed_file(filename):
+                file_path = os.path.join(UPLOAD_FOLDER, filename)
+                try:
+                    os.remove(file_path)
+                    print(f"Cleaned up unused image: {filename}")
+                except Exception as e:
+                    print(f"Error deleting file {filename}: {str(e)}")
+    except Exception as e:
+        print(f"Error during image cleanup: {str(e)}")
 
 if __name__ == '__main__':
     # Create default admin user if none exists
