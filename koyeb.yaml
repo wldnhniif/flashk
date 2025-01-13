@@ -1,0 +1,25 @@
+app:
+  name: flashk
+  regions:
+    - sin
+  services:
+    - name: backend
+      instance_type: free
+      git:
+        repository: https://github.com/yourusername/flashk.git
+        branch: main
+      build:
+        builder: python
+        buildCommand: pip install -r requirements.txt
+      run:
+        command: cd backend && gunicorn app:app --bind 0.0.0.0:$PORT --workers 4 --threads 2
+      ports:
+        - port: 8000
+          protocol: http
+      env:
+        - name: FLASK_ENV
+          value: production
+        - name: SUPABASE_URL
+          value: https://q6fuqvlmhtzejscaxtx.supabase.co
+        - name: SUPABASE_KEY
+          secret: SUPABASE_KEY 
