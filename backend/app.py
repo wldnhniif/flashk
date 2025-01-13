@@ -561,11 +561,19 @@ def add_product():
         user_id = get_jwt_identity()
         print(f"Adding product for user_id: {user_id}")
         
+        # Validate request data
+        if not request.form:
+            print("No form data received")
+            return jsonify({"error": "No form data provided"}), 400
+            
         data = request.form.to_dict()
-        print(f"Product data: {data}")
+        print(f"Received product data: {data}")
         
-        if 'name' not in data or 'price' not in data:
-            return jsonify({"error": "Name and price are required"}), 400
+        if 'name' not in data or not data['name'].strip():
+            return jsonify({"error": "Product name is required"}), 400
+            
+        if 'price' not in data:
+            return jsonify({"error": "Product price is required"}), 400
         
         try:
             price = float(data['price'])
@@ -574,41 +582,71 @@ def add_product():
         except ValueError:
             return jsonify({"error": "Invalid price format"}), 400
         
+        # Handle image upload
         image_url = None
         if 'image' in request.files:
             file = request.files['image']
-            if file and allowed_file(file.filename):
-                filename = secure_filename(str(uuid.uuid4()) + '_' + file.filename)
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(file_path)
-                image_url = f"/api/uploads/{filename}"
-                print(f"Image saved: {image_url}")
+            print(f"Received image file: {file.filename if file else 'None'}")
+            
+            if file and file.filename:
+                if not allowed_file(file.filename):
+                    return jsonify({"error": "Invalid file type"}), 400
+                    
+                try:
+                    filename = secure_filename(str(uuid.uuid4()) + '_' + file.filename)
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    file.save(file_path)
+                    image_url = f"/api/uploads/{filename}"
+                    print(f"Image saved successfully: {image_url}")
+                except Exception as e:
+                    print(f"Error saving image: {str(e)}")
+                    return jsonify({"error": "Failed to save image"}), 500
         
-        response = create_product(
-            name=data['name'],
-            price=price,
-            image_url=image_url,
-            user_id=user_id
-        )
-        
-        if not response.data:
-            if image_url:  # Clean up the uploaded image if product creation fails
-                filename = image_url.split('/')[-1]
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-            return jsonify({"error": "Failed to create product"}), 500
-        
-        # Clean up unused images after successful product creation
-        cleanup_old_images()
-        
-        return jsonify({
-            "message": "Product added successfully",
-            "product": response.data[0]
-        }), 201
-        
+        # Create product in database
+        try:
+            response = create_product(
+                name=data['name'].strip(),
+                price=price,
+                image_url=image_url,
+                user_id=user_id
+            )
+            print(f"Database response: {response.data if response.data else 'None'}")
+            
+            if not response.data:
+                if image_url:  # Clean up the uploaded image if product creation fails
+                    try:
+                        filename = image_url.split('/')[-1]
+                        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                            print(f"Cleaned up image after failed product creation: {filename}")
+                    except Exception as e:
+                        print(f"Error cleaning up image: {str(e)}")
+                return jsonify({"error": "Failed to create product in database"}), 500
+            
+            # Clean up unused images
+            cleanup_old_images()
+            
+            return jsonify({
+                "message": "Product added successfully",
+                "product": response.data[0]
+            }), 201
+            
+        except Exception as e:
+            print(f"Database error: {str(e)}")
+            if image_url:  # Clean up image if database operation fails
+                try:
+                    filename = image_url.split('/')[-1]
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        print(f"Cleaned up image after database error: {filename}")
+                except Exception as cleanup_error:
+                    print(f"Error cleaning up image: {str(cleanup_error)}")
+            return jsonify({"error": "Database error occurred"}), 500
+            
     except Exception as e:
-        print(f"Error adding product: {str(e)}")
+        print(f"Unexpected error in add_product: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/products/<int:product_id>', methods=['PUT'])
@@ -742,15 +780,15 @@ def generate_receipt():
         pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
         # Create PDF with custom page size and margins
-        page_width = 3 * inch  # Narrower width for a receipt-like feel
-        page_height = 11 * inch
+        page_width = 2.8 * inch  # Even narrower width for a receipt-like feel
+        page_height = 6 * inch  # Shorter height
         doc = SimpleDocTemplate(
             pdf_path,
             pagesize=(page_width, page_height),
-            rightMargin=0.15*inch,
-            leftMargin=0.15*inch,
-            topMargin=0.3*inch,
-            bottomMargin=0.3*inch
+            rightMargin=0.1*inch,
+            leftMargin=0.1*inch,
+            topMargin=0.2*inch,
+            bottomMargin=0.2*inch
         )
 
         # Prepare the story (content)
@@ -761,8 +799,8 @@ def generate_receipt():
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
-            fontSize=14,
-            spaceAfter=8,
+            fontSize=12,
+            spaceAfter=4,
             alignment=1,
             textColor=colors.HexColor('#1a237e')
         )
@@ -770,8 +808,8 @@ def generate_receipt():
         subtitle_style = ParagraphStyle(
             'Subtitle',
             parent=styles['Normal'],
-            fontSize=10,
-            spaceAfter=16,
+            fontSize=8,
+            spaceAfter=8,
             alignment=1,
             textColor=colors.HexColor('#424242')
         )
@@ -779,8 +817,8 @@ def generate_receipt():
         date_style = ParagraphStyle(
             'DateStyle',
             parent=styles['Normal'],
-            fontSize=8,
-            spaceAfter=16,
+            fontSize=7,
+            spaceAfter=8,
             alignment=1,
             textColor=colors.HexColor('#616161')
         )
@@ -798,11 +836,11 @@ def generate_receipt():
         # Add divider
         story.append(HRFlowable(
             width="100%",
-            thickness=1,
+            thickness=0.5,
             lineCap='round',
             color=colors.HexColor('#e0e0e0'),
-            spaceBefore=8,
-            spaceAfter=8
+            spaceBefore=4,
+            spaceAfter=4
         ))
 
         # Format price in Indonesian Rupiah
@@ -816,31 +854,36 @@ def generate_receipt():
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#424242')),
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 7),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-            ('TOPPADDING', (0, 0), (-1, 0), 6),
+            ('FONTSIZE', (0, 0), (-1, 0), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
+            ('TOPPADDING', (0, 0), (-1, 0), 4),
             
             # Content styling
             ('FONTNAME', (0, 1), (-1, -3), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -3), 7),
+            ('FONTSIZE', (0, 1), (-1, -3), 6),
             ('ALIGN', (0, 1), (0, -3), 'LEFT'),
             ('ALIGN', (1, 1), (-1, -3), 'RIGHT'),
             ('TEXTCOLOR', (0, 1), (-1, -3), colors.HexColor('#424242')),
+            ('BOTTOMPADDING', (0, 1), (-1, -3), 2),
+            ('TOPPADDING', (0, 1), (-1, -3), 2),
             
             # Total section styling
             ('FONTNAME', (-2, -1), (-1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (-2, -1), (-1, -1), 8),
+            ('FONTSIZE', (-2, -1), (-1, -1), 7),
             ('TEXTCOLOR', (-2, -1), (-1, -1), colors.HexColor('#1a237e')),
             ('ALIGN', (-2, -1), (-1, -1), 'RIGHT'),
-            ('LINEABOVE', (-2, -1), (-1, -1), 1, colors.HexColor('#e0e0e0')),
-            ('TOPPADDING', (-2, -1), (-1, -1), 6),
+            ('LINEABOVE', (-2, -1), (-1, -1), 0.5, colors.HexColor('#e0e0e0')),
+            ('TOPPADDING', (-2, -1), (-1, -1), 4),
         ])
 
         # Prepare table data
         table_data = [['Item', 'Qty', 'Price', 'Total']]
         for item in items:
+            name = item['name']
+            if len(name) > 15:  # Truncate long names
+                name = name[:12] + '...'
             table_data.append([
-                item['name'][:20],  # Limit name length
+                name,
                 str(item['quantity']),
                 format_rupiah(item['price']),
                 format_rupiah(item['price'] * item['quantity'])
@@ -849,8 +892,8 @@ def generate_receipt():
         # Add total row
         table_data.append(['', '', 'Total:', format_rupiah(total)])
 
-        # Create and style the table
-        col_widths = [1.2*inch, 0.3*inch, 0.6*inch, 0.6*inch]
+        # Create and style the table with adjusted column widths
+        col_widths = [1.1*inch, 0.3*inch, 0.6*inch, 0.5*inch]
         table = Table(table_data, colWidths=col_widths)
         table.setStyle(table_style)
         story.append(table)
@@ -858,21 +901,21 @@ def generate_receipt():
         # Add bottom divider
         story.append(HRFlowable(
             width="100%",
-            thickness=1,
+            thickness=0.5,
             lineCap='round',
             color=colors.HexColor('#e0e0e0'),
-            spaceBefore=8,
-            spaceAfter=8
+            spaceBefore=4,
+            spaceAfter=4
         ))
 
         # Add footer
         footer_style = ParagraphStyle(
             'Footer',
             parent=styles['Normal'],
-            fontSize=7,
+            fontSize=6,
             alignment=1,
             textColor=colors.HexColor('#757575'),
-            spaceBefore=8
+            spaceBefore=4
         )
         story.append(Paragraph("Thank you for your purchase!", footer_style))
         story.append(Paragraph("Please come again", footer_style))

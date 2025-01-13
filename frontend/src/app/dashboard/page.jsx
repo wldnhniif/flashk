@@ -60,6 +60,9 @@ export default function Dashboard() {
   const handleAddProduct = async (e) => {
     e.preventDefault();
     try {
+      // Show loading toast
+      const loadingToast = toast.loading('Adding product...');
+
       const formData = new FormData();
       formData.append('name', newProduct.name);
       formData.append('price', String(newProduct.price));
@@ -67,22 +70,37 @@ export default function Dashboard() {
         formData.append('image', newProduct.image);
       }
 
+      console.log('Sending product data:', {
+        name: newProduct.name,
+        price: newProduct.price,
+        hasImage: !!newProduct.image
+      });
+
       const response = await api.post('/api/products', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      const newProductData = {
-        ...response.data.product,
-        image_url: response.data.product.image_url ? 
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${response.data.product.image_url}` : null
-      };
-      
-      setProducts([...products, newProductData]);
-      setNewProduct({ name: '', price: '', image: null });
-      setImagePreview(null);
-      toast.success('Product added successfully');
+      console.log('Add product response:', response.data);
+
+      if (response.data.product) {
+        const productData = {
+          ...response.data.product,
+          image_url: response.data.product.image_url ? 
+            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${response.data.product.image_url}` : null
+        };
+
+        setProducts([...products, productData]);
+        setNewProduct({ name: '', price: '', image: null });
+        setImagePreview(null);
+        toast.dismiss(loadingToast);
+        toast.success('Product added successfully');
+      } else {
+        toast.dismiss(loadingToast);
+        toast.error('Failed to add product: Invalid response format');
+      }
     } catch (error) {
       console.error('Error adding product:', error);
+      console.error('Error details:', error.response?.data);
       toast.error(error.response?.data?.error || 'Failed to add product');
     }
   };
