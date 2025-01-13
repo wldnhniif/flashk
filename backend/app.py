@@ -30,8 +30,8 @@ app = Flask(__name__)
 
 # Initialize Supabase client
 supabase: Client = create_client(
-    os.getenv('SUPABASE_URL'),
-    os.getenv('SUPABASE_KEY')
+    supabase_url=os.getenv('SUPABASE_URL'),
+    supabase_key=os.getenv('SUPABASE_KEY')
 )
 
 # Enable security headers with Talisman
