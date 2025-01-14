@@ -156,24 +156,108 @@ export default function Dashboard() {
       const response = await api.post('/api/transactions', {
         items: cart.map(item => ({
           product_id: item.id,
-          quantity: item.quantity
+          quantity: item.quantity,
+          price: item.price
         }))
       });
       
+      // Create receipt window
+      const receiptWindow = window.open('', '_blank');
+      if (!receiptWindow) {
+        toast.error('Pop-up diblokir. Mohon izinkan pop-up untuk mencetak struk.');
+        return;
+      }
+
+      // Write receipt HTML
+      receiptWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Struk Pembayaran - KasirKuy</title>
+          <style>
+            body {
+              font-family: 'Courier New', monospace;
+              padding: 20px;
+              max-width: 300px;
+              margin: 0 auto;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 20px;
+            }
+            .divider {
+              border-top: 1px dashed #000;
+              margin: 10px 0;
+            }
+            .item {
+              display: flex;
+              justify-content: space-between;
+              margin: 5px 0;
+            }
+            .total {
+              font-weight: bold;
+              margin-top: 10px;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 20px;
+              font-size: 12px;
+            }
+            @media print {
+              body { margin: 0; padding: 10px; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2 style="margin:0">KasirKuy</h2>
+            <p style="margin:5px 0">Struk Pembayaran</p>
+            <p style="margin:5px 0">${new Date().toLocaleString('id-ID')}</p>
+          </div>
+          <div class="divider"></div>
+          ${cart.map(item => `
+            <div class="item">
+              <div>
+                ${item.name}<br/>
+                ${item.quantity} x ${formatToRupiah(item.price)}
+              </div>
+              <div>
+                ${formatToRupiah(item.price * item.quantity)}
+              </div>
+            </div>
+          `).join('')}
+          <div class="divider"></div>
+          <div class="total">
+            <div class="item">
+              <div>Total</div>
+              <div>${formatToRupiah(calculateTotal())}</div>
+            </div>
+          </div>
+          <div class="footer">
+            <p>Terima kasih telah berbelanja!</p>
+            <p>Powered by KasirKuy</p>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() {
+                window.close();
+              }, 500);
+            };
+          </script>
+        </body>
+        </html>
+      `);
+
+      // Close the document
+      receiptWindow.document.close();
+      
+      // Clear cart and show success message
       setCart([]);
       toast.success('Transaksi berhasil');
-      
-      const receiptWindow = window.open('', '_blank');
-      if (receiptWindow) {
-        receiptWindow.document.write(response.data.receipt);
-        receiptWindow.document.close();
-        receiptWindow.print();
-      } else {
-        toast.error('Pop-up diblokir. Mohon izinkan pop-up untuk mencetak struk.');
-      }
     } catch (error) {
       console.error('Error processing transaction:', error);
-      toast.error('Gagal memproses transaksi');
+      toast.error('Gagal memproses transaksi. Silakan coba lagi.');
     }
   };
 
@@ -421,6 +505,14 @@ export default function Dashboard() {
               <span className="text-sm text-gray-600">
                 Halo, {user?.username}
               </span>
+              {user?.is_admin && (
+                <button
+                  onClick={() => router.push('/admin')}
+                  className="flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
+                >
+                  Panel Admin
+                </button>
+              )}
               <button
                 onClick={handleLogout}
                 className="flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
