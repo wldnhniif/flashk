@@ -249,16 +249,25 @@ def delete_product(product_id):
         response = supabase.from_('products').delete().eq('id', product_id).execute()
         print(f"Delete response: {response.data if response.data else 'None'}")
         
-        # If deletion was successful and product had an image, clean it up
+        # If deletion was successful and product had an image, check if we should clean it up
         if response.data and product.data[0].get('image_url'):
             try:
-                filename = product.data[0]['image_url'].split('/')[-1]
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                    print(f"Deleted image file: {filename}")
+                image_url = product.data[0]['image_url']
+                filename = image_url.split('/')[-1]
+                
+                # Check if any other products use this image
+                other_products = supabase.from_('products').select('id').neq('id', product_id).ilike('image_url', f'%{filename}%').execute()
+                
+                # Only delete the image if no other products are using it
+                if not other_products.data:
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        print(f"Deleted image file: {filename}")
+                else:
+                    print(f"Image {filename} is still in use by other products, keeping file")
             except Exception as e:
-                print(f"Error deleting image file: {str(e)}")
+                print(f"Error handling image file: {str(e)}")
         
         return response
     except Exception as e:
@@ -779,14 +788,14 @@ def generate_receipt():
         filename = f"receipt_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}.pdf"
         pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
-        # Create PDF with custom page size and margins
-        page_width = 3.0 * inch  # Slightly wider for better readability
-        page_height = 7.0 * inch  # Taller to accommodate modern spacing
+        # Create PDF with custom page size and margins - slightly wider for better spacing
+        page_width = 3.5 * inch  # Increased width for better spacing
+        page_height = 7.0 * inch
         doc = SimpleDocTemplate(
             pdf_path,
             pagesize=(page_width, page_height),
-            rightMargin=0.2*inch,
-            leftMargin=0.2*inch,
+            rightMargin=0.25*inch,
+            leftMargin=0.25*inch,
             topMargin=0.3*inch,
             bottomMargin=0.3*inch
         )
@@ -801,12 +810,12 @@ def generate_receipt():
         secondary_color = colors.HexColor('#6b7280')  # Medium gray
         light_bg = colors.HexColor('#f3f4f6')      # Light gray background
 
-        # Custom styles
+        # Custom styles with improved spacing
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
-            fontSize=14,
-            spaceAfter=4,
+            fontSize=16,
+            spaceAfter=6,
             alignment=1,
             textColor=primary_color,
             fontName='Helvetica-Bold'
@@ -815,7 +824,7 @@ def generate_receipt():
         subtitle_style = ParagraphStyle(
             'Subtitle',
             parent=styles['Normal'],
-            fontSize=9,
+            fontSize=10,
             spaceAfter=12,
             alignment=1,
             textColor=text_color,
@@ -826,13 +835,13 @@ def generate_receipt():
             'DateStyle',
             parent=styles['Normal'],
             fontSize=8,
-            spaceAfter=16,
+            spaceAfter=20,  # Increased spacing before table
             alignment=1,
             textColor=secondary_color,
             fontName='Helvetica'
         )
 
-        # Add header with modern spacing
+        # Add header with improved spacing
         story.append(Paragraph("KasirKuy", title_style))
         story.append(Paragraph("Sales Receipt", subtitle_style))
         
@@ -842,59 +851,63 @@ def generate_receipt():
         time_str = current_time.strftime('%I:%M %p')
         story.append(Paragraph(f"{date_str} • {time_str}", date_style))
 
-        # Add subtle divider
+        # Add subtle divider with more spacing
         story.append(HRFlowable(
             width="100%",
             thickness=0.5,
             lineCap='round',
             color=colors.HexColor('#e5e7eb'),
-            spaceBefore=6,
-            spaceAfter=8
+            spaceBefore=8,
+            spaceAfter=12
         ))
 
-        # Improved price formatting
+        # Improved price formatting with proper spacing
         def format_rupiah(amount):
-            return f"Rp {amount:,.0f}".replace(',', '.')
+            return f"Rp {amount:,}".replace(',', '.').rjust(12)
 
-        # Modern table styling
+        # Modern table styling with improved spacing
         table_style = TableStyle([
             # Header styling
             ('BACKGROUND', (0, 0), (-1, 0), light_bg),
             ('TEXTCOLOR', (0, 0), (-1, 0), text_color),
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-            ('TOPPADDING', (0, 0), (-1, 0), 6),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),  # Slightly larger header
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
             ('LINEBELOW', (0, 0), (-1, 0), 0.5, colors.HexColor('#e5e7eb')),
             
             # Content styling
             ('FONTNAME', (0, 1), (-1, -3), 'Helvetica'),
             ('FONTSIZE', (0, 1), (-1, -3), 8),
-            ('ALIGN', (0, 1), (0, -3), 'LEFT'),    # Item names left-aligned
-            ('ALIGN', (1, 1), (1, -3), 'CENTER'),  # Quantities center-aligned
-            ('ALIGN', (2, 1), (-1, -3), 'RIGHT'),  # Prices and totals right-aligned
+            ('ALIGN', (0, 1), (0, -3), 'LEFT'),     # Item names left-aligned
+            ('ALIGN', (1, 1), (1, -3), 'CENTER'),   # Quantities center-aligned
+            ('ALIGN', (2, 1), (-1, -3), 'RIGHT'),   # Prices and totals right-aligned
             ('TEXTCOLOR', (0, 1), (-1, -3), text_color),
-            ('BOTTOMPADDING', (0, 1), (-1, -3), 4),
-            ('TOPPADDING', (0, 1), (-1, -3), 4),
+            ('BOTTOMPADDING', (0, 1), (-1, -3), 6),
+            ('TOPPADDING', (0, 1), (-1, -3), 6),
             ('GRID', (0, 0), (-1, -2), 0.5, colors.HexColor('#f3f4f6')),
             
-            # Total section styling
+            # Total section styling with more emphasis
             ('FONTNAME', (-2, -1), (-1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (-2, -1), (-1, -1), 9),
+            ('FONTSIZE', (-2, -1), (-1, -1), 10),  # Larger total font
             ('TEXTCOLOR', (-2, -1), (-1, -1), primary_color),
             ('ALIGN', (-2, -1), (-1, -1), 'RIGHT'),
             ('LINEABOVE', (-2, -1), (-1, -1), 1, colors.HexColor('#e5e7eb')),
-            ('TOPPADDING', (-2, -1), (-1, -1), 8),
-            ('BOTTOMPADDING', (-2, -1), (-1, -1), 4),
+            ('TOPPADDING', (-2, -1), (-1, -1), 12),
+            ('BOTTOMPADDING', (-2, -1), (-1, -1), 6),
+            
+            # Add spacing between columns
+            ('LEFTPADDING', (0, 0), (-1, -1), 5),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 5),
         ])
 
-        # Prepare table data with improved formatting
+        # Prepare table data with improved formatting and spacing
         table_data = [['Item', 'Qty', 'Price', 'Total']]
         for item in items:
             name = item['name']
-            if len(name) > 15:  # Truncate long names
-                name = name[:13] + '..'
+            if len(name) > 20:  # Allow longer names due to wider page
+                name = name[:18] + '..'
             table_data.append([
                 name,
                 str(item['quantity']),
@@ -906,36 +919,36 @@ def generate_receipt():
         table_data.append(['', '', 'Total:', format_rupiah(total)])
 
         # Create and style the table with optimized column widths
-        col_widths = [1.2*inch, 0.3*inch, 0.6*inch, 0.5*inch]
+        col_widths = [1.6*inch, 0.3*inch, 0.7*inch, 0.7*inch]  # Adjusted widths
         table = Table(table_data, colWidths=col_widths)
         table.setStyle(table_style)
         story.append(table)
 
-        # Add bottom divider
+        # Add bottom divider with more spacing
         story.append(HRFlowable(
             width="100%",
             thickness=0.5,
             lineCap='round',
             color=colors.HexColor('#e5e7eb'),
-            spaceBefore=8,
-            spaceAfter=8
+            spaceBefore=12,
+            spaceAfter=12
         ))
 
-        # Modern footer styling
+        # Modern footer styling with improved spacing
         footer_style = ParagraphStyle(
             'Footer',
             parent=styles['Normal'],
-            fontSize=7,
+            fontSize=8,
             alignment=1,
             textColor=secondary_color,
             fontName='Helvetica',
-            spaceBefore=4,
-            spaceAfter=2
+            spaceBefore=6,
+            spaceAfter=3
         )
         
         # Add footer with improved spacing
         story.append(Paragraph("Thank you for your purchase!", footer_style))
-        story.append(Spacer(1, 2))
+        story.append(Spacer(1, 4))
         story.append(Paragraph("Please come again", footer_style))
         
         # Build PDF
@@ -1177,18 +1190,37 @@ def cleanup_old_images():
         active_images = set()
         
         # Collect all active image filenames
-        for product in response.data:
-            if product.get('image_url'):
-                filename = product['image_url'].split('/')[-1]
-                active_images.add(filename)
+        if response.data:
+            for product in response.data:
+                if product.get('image_url'):
+                    filename = product['image_url'].split('/')[-1]
+                    active_images.add(filename)
         
-        # Check upload folder and remove unused images
+        # Check upload folder and remove only receipt files and truly orphaned images
         for filename in os.listdir(UPLOAD_FOLDER):
-            if filename not in active_images and allowed_file(filename):
+            # Skip non-files
+            if not os.path.isfile(os.path.join(UPLOAD_FOLDER, filename)):
+                continue
+                
+            # Always clean up receipt files (they start with 'receipt_')
+            if filename.startswith('receipt_'):
                 file_path = os.path.join(UPLOAD_FOLDER, filename)
                 try:
                     os.remove(file_path)
-                    print(f"Cleaned up unused image: {filename}")
+                    print(f"Cleaned up receipt file: {filename}")
+                except Exception as e:
+                    print(f"Error deleting receipt file {filename}: {str(e)}")
+                continue
+            
+            # Only delete image files that are not referenced by any product
+            if allowed_file(filename) and filename not in active_images:
+                file_path = os.path.join(UPLOAD_FOLDER, filename)
+                try:
+                    # Double check if image is truly not referenced
+                    double_check = supabase.from_('products').select('id').ilike('image_url', f'%{filename}%').execute()
+                    if not double_check.data:
+                        os.remove(file_path)
+                        print(f"Cleaned up unused image: {filename}")
                 except Exception as e:
                     print(f"Error deleting file {filename}: {str(e)}")
     except Exception as e:
