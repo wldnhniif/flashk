@@ -8,87 +8,50 @@ import { FaSpinner } from 'react-icons/fa';
 import { FaCashRegister } from 'react-icons/fa';
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const { login, register, user, loading } = useAuth();
+  const [formData, setFormData] = useState({
+    username: '',
+    password: ''
+  });
+  const { login, register } = useAuth();
   const router = useRouter();
-
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (user && !loading) {
-      router.push('/dashboard');
-    }
-  }, [user, loading, router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isLoading) return;
     setIsLoading(true);
-
+    
     try {
       if (isLogin) {
-        await login(username, password);
+        await login(formData.username, formData.password);
       } else {
-        await register(username, password);
-        setIsLogin(true);
-        setUsername('');
-        setPassword('');
+        await register(formData.username, formData.password);
       }
+      router.push('/dashboard');
     } catch (error) {
       console.error('Auth error:', error);
-      // Convert error to user-friendly message
-      let errorMessage;
-      
-      if (error?.response?.status === 401) {
-        errorMessage = 'Nama pengguna atau kata sandi salah';
-      } else if (error?.response?.status === 409) {
-        errorMessage = 'Nama pengguna sudah digunakan';
-      } else if (error?.response?.status === 400) {
-        errorMessage = error?.response?.data?.message || 'Data tidak valid';
-      } else if (error?.code === 'ERR_NETWORK') {
-        errorMessage = 'Tidak dapat terhubung ke server. Mohon coba lagi nanti.';
-      } else if (error?.response?.status === 500) {
-        errorMessage = 'Terjadi kesalahan pada server. Mohon coba lagi nanti.';
-      } else {
-        errorMessage = error?.response?.data?.error || 'Terjadi kesalahan. Silakan coba lagi.';
-      }
-      
-      toast.error(errorMessage);
+      toast.error(error.response?.data?.message || 'Gagal masuk. Silakan coba lagi.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Show loading state while checking authentication
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <FaSpinner className="w-8 h-8 animate-spin text-gray-800" />
-      </div>
-    );
-  }
-
-  // Don't show login page if already authenticated
-  if (user) {
-    return null;
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-gradient-to-r from-gray-700 to-gray-800 p-3 rounded-lg mx-auto w-fit">
-          <FaCashRegister className="w-12 h-12 text-white" />
+        <div className="flex justify-center">
+          <div className="bg-gradient-to-r from-gray-700 to-gray-800 p-3 rounded-xl">
+            <FaCashRegister className="w-12 h-12 text-white" />
+          </div>
         </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+        <h1 className="mt-6 text-center text-3xl font-bold text-gray-900">
           KasirKuy
-        </h2>
+        </h1>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form className="space-y-6" onSubmit={handleSubmit}>
+        <div className="bg-white py-8 px-4 shadow-sm rounded-lg sm:px-10">
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700">
                 Nama Pengguna
@@ -99,9 +62,9 @@ export default function LoginPage() {
                   name="username"
                   type="text"
                   required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-gray-500 focus:border-gray-500 text-black"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900 text-base"
                   disabled={isLoading}
                 />
               </div>
@@ -117,9 +80,9 @@ export default function LoginPage() {
                   name="password"
                   type="password"
                   required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-gray-500 focus:border-gray-500 text-black"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900 text-base"
                   disabled={isLoading}
                 />
               </div>
@@ -129,7 +92,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <FaSpinner className="w-5 h-5 animate-spin" />

@@ -96,13 +96,18 @@ export default function Dashboard() {
           'Content-Type': 'multipart/form-data',
         },
       });
+
+      if (!response.data || !response.data.product) {
+        throw new Error('Invalid response from server');
+      }
+
       setProducts(products.map(p => p.id === editingProduct.id ? response.data.product : p));
       toast.success('Produk berhasil diperbarui');
       setShowModal(false);
       setEditingProduct(null);
     } catch (error) {
       console.error('Error updating product:', error);
-      toast.error('Gagal memperbarui produk');
+      toast.error(error.response?.data?.message || 'Gagal memperbarui produk');
     } finally {
       setIsSubmitting(false);
     }
@@ -195,13 +200,15 @@ export default function Dashboard() {
       <div className="relative w-full pb-[100%]">
         {product.image_url ? (
           <img
-            src={`${process.env.NEXT_PUBLIC_API_URL}${product.image_url}`}
+            src={`${process.env.NEXT_PUBLIC_API_URL}${product.image_url}?t=${new Date().getTime()}`}
             alt={product.name}
             className="absolute top-0 left-0 w-full h-full object-cover"
             onError={(e) => {
               e.target.onerror = null;
               e.target.src = '/placeholder.png';
+              console.error('Failed to load image:', product.image_url);
             }}
+            loading="lazy"
           />
         ) : (
           <div className="absolute top-0 left-0 w-full h-full bg-gray-100 flex items-center justify-center">
@@ -251,7 +258,7 @@ export default function Dashboard() {
       if (editingProduct) {
         setName(editingProduct.name);
         setPrice(editingProduct.price.toString());
-        setPreviewUrl(editingProduct.image_url ? `${process.env.NEXT_PUBLIC_API_URL}${editingProduct.image_url}` : '');
+        setPreviewUrl(editingProduct.image_url ? `${process.env.NEXT_PUBLIC_API_URL}${editingProduct.image_url}?t=${new Date().getTime()}` : '');
       } else {
         setName('');
         setPrice('');
@@ -426,7 +433,7 @@ export default function Dashboard() {
               <h1 className="text-xl sm:text-2xl font-bold text-gray-800">KasirKuy</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-600 hidden sm:inline">
                 Halo, {user?.username}
               </span>
               {user?.is_admin && (
@@ -467,7 +474,7 @@ export default function Dashboard() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4">
               {products.map((product) => (
                 <ProductCard
                   key={product.id}
@@ -482,38 +489,38 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Cart Section */}
-          <div className="bg-white rounded-lg shadow-sm p-6 h-fit lg:sticky lg:top-24">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-gray-800">Keranjang</h2>
+          {/* Cart Section - Make it sticky on desktop and fixed on mobile */}
+          <div className="fixed bottom-0 left-0 right-0 lg:static lg:bottom-auto bg-white shadow-lg lg:shadow-sm p-4 lg:p-6 lg:rounded-lg lg:h-fit lg:sticky lg:top-24">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Keranjang</h2>
               <button
                 onClick={handlePrint}
                 disabled={cart.length === 0}
-                className="flex items-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center px-3 sm:px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
               >
                 <FaPrint className="w-4 h-4 mr-2" />
                 Cetak Struk
               </button>
             </div>
 
-            <div className="space-y-4 max-h-[calc(100vh-24rem)] overflow-y-auto">
+            <div className="space-y-3 max-h-[40vh] lg:max-h-[calc(100vh-24rem)] overflow-y-auto">
               {cart.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <h3 className="font-medium text-gray-800">{item.name}</h3>
+                <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-gray-800 truncate">{item.name}</h3>
                     <p className="text-sm text-gray-600">{formatToRupiah(item.price)} × {item.quantity}</p>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-3 ml-4">
                     <button
                       onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)}
-                      className="p-1 text-gray-600 hover:text-gray-800"
+                      className="p-1 text-gray-600 hover:text-gray-800 text-lg"
                     >
                       -
                     </button>
                     <span className="w-8 text-center">{item.quantity}</span>
                     <button
                       onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)}
-                      className="p-1 text-gray-600 hover:text-gray-800"
+                      className="p-1 text-gray-600 hover:text-gray-800 text-lg"
                     >
                       +
                     </button>
@@ -523,14 +530,14 @@ export default function Dashboard() {
             </div>
 
             {cart.length > 0 ? (
-              <div className="mt-6 pt-6 border-t border-gray-200">
+              <div className="mt-4 pt-4 border-t border-gray-200">
                 <div className="flex justify-between items-center text-lg font-semibold text-gray-800">
                   <span>Total</span>
                   <span>{formatToRupiah(calculateTotal())}</span>
                 </div>
               </div>
             ) : (
-              <div className="text-center text-gray-500 py-8">
+              <div className="text-center text-gray-500 py-6">
                 Keranjang kosong
               </div>
             )}

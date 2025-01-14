@@ -19,7 +19,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState([]);
   const [products, setProducts] = useState([]);
   const [newUser, setNewUser] = useState({ username: '', password: '', is_admin: false });
-  const [editingUser, setEditingUser] = useState(null);
+  const [editingUser, _setEditingUser] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
   const { user, api, logout } = useAuth();
   const router = useRouter();
@@ -82,13 +82,19 @@ export default function AdminDashboard() {
     }
 
     try {
-      await api.put(`/api/admin/users/${userId}`, {
+      const response = await api.put(`/api/admin/users/${userId}`, {
         username: updatedData.username,
-        is_admin: updatedData.is_admin
+        is_admin: updatedData.is_admin,
+        id: userId // Add user ID to ensure correct user is updated
       });
-      toast.success('Pengguna berhasil diperbarui');
-      fetchData(); // Refresh data
-      setEditingUser(null);
+
+      if (response.data) {
+        toast.success('Pengguna berhasil diperbarui');
+        fetchData(); // Refresh data
+        setEditingUser(null);
+      } else {
+        throw new Error('Failed to update user');
+      }
     } catch (error) {
       console.error('Error updating user:', error);
       toast.error(error.response?.data?.message || 'Gagal memperbarui pengguna');
@@ -160,6 +166,20 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error('Error updating product:', error);
       toast.error(error.response?.data?.message || 'Gagal memperbarui produk');
+    }
+  };
+
+  // Function to safely set editing user
+  const setEditingUser = (user) => {
+    if (user) {
+      _setEditingUser({
+        id: user.id,
+        username: user.username,
+        is_admin: user.is_admin,
+        created_at: user.created_at
+      });
+    } else {
+      _setEditingUser(null);
     }
   };
 
@@ -394,13 +414,15 @@ export default function AdminDashboard() {
                         <div className="flex items-center space-x-3">
                           {product.image_url ? (
                             <img
-                              src={`${process.env.NEXT_PUBLIC_API_URL}${product.image_url}`}
+                              src={`${process.env.NEXT_PUBLIC_API_URL}${product.image_url}?t=${new Date().getTime()}`}
                               alt={product.name}
                               className="w-8 h-8 rounded-full object-cover"
                               onError={(e) => {
                                 e.target.onerror = null;
                                 e.target.src = '/placeholder.png';
+                                console.error('Failed to load image:', product.image_url);
                               }}
+                              loading="lazy"
                             />
                           ) : (
                             <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
