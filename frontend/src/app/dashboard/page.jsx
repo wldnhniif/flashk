@@ -160,30 +160,54 @@ export default function Dashboard() {
           price: item.price
         }))
       });
-      
-      // Create receipt window
+
+      // Create receipt window with proper error handling
       const receiptWindow = window.open('', '_blank');
       if (!receiptWindow) {
         toast.error('Pop-up diblokir. Mohon izinkan pop-up untuk mencetak struk.');
         return;
       }
 
-      // Write receipt HTML
+      // Get current date and time in Indonesian format
+      const currentDate = new Date().toLocaleDateString('id-ID', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      // Write receipt HTML with improved styling and save/print buttons
       receiptWindow.document.write(`
         <!DOCTYPE html>
         <html>
         <head>
           <title>Struk Pembayaran - KasirKuy</title>
+          <meta charset="UTF-8">
           <style>
+            @page {
+              margin: 0;
+              size: 80mm auto;
+            }
             body {
               font-family: 'Courier New', monospace;
-              padding: 20px;
-              max-width: 300px;
-              margin: 0 auto;
+              margin: 0;
+              padding: 10mm;
+              font-size: 12px;
+              line-height: 1.5;
             }
             .header {
               text-align: center;
-              margin-bottom: 20px;
+              margin-bottom: 10px;
+            }
+            .header h1 {
+              font-size: 18px;
+              margin: 0;
+            }
+            .header p {
+              margin: 5px 0;
+              font-size: 12px;
             }
             .divider {
               border-top: 1px dashed #000;
@@ -194,56 +218,109 @@ export default function Dashboard() {
               justify-content: space-between;
               margin: 5px 0;
             }
+            .item-details {
+              flex: 1;
+            }
+            .item-total {
+              text-align: right;
+              margin-left: 10px;
+            }
             .total {
               font-weight: bold;
               margin-top: 10px;
+              text-align: right;
             }
             .footer {
               text-align: center;
               margin-top: 20px;
-              font-size: 12px;
+              font-size: 10px;
+            }
+            .actions {
+              position: fixed;
+              top: 10px;
+              right: 10px;
+              display: flex;
+              gap: 10px;
+            }
+            .actions button {
+              padding: 8px 16px;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+              font-size: 14px;
+            }
+            .print-btn {
+              background: #1a1a1a;
+              color: white;
+            }
+            .save-btn {
+              background: #4a5568;
+              color: white;
             }
             @media print {
-              body { margin: 0; padding: 10px; }
+              .actions {
+                display: none;
+              }
+              body {
+                width: 80mm;
+                margin: 0;
+                padding: 5mm;
+              }
             }
           </style>
         </head>
         <body>
-          <div class="header">
-            <h2 style="margin:0">KasirKuy</h2>
-            <p style="margin:5px 0">Struk Pembayaran</p>
-            <p style="margin:5px 0">${new Date().toLocaleString('id-ID')}</p>
+          <div class="actions">
+            <button onclick="window.print()" class="print-btn">Cetak</button>
+            <button onclick="saveAsPDF()" class="save-btn">Simpan PDF</button>
           </div>
+          <div class="header">
+            <h1>KasirKuy</h1>
+            <p>Struk Pembayaran</p>
+            <p>${currentDate}</p>
+            <p>No. Transaksi: ${response.data.transaction.id}</p>
+            <p>Kasir: ${user?.username || 'Admin'}</p>
+          </div>
+          
           <div class="divider"></div>
+          
           ${cart.map(item => `
             <div class="item">
-              <div>
+              <div class="item-details">
                 ${item.name}<br/>
                 ${item.quantity} x ${formatToRupiah(item.price)}
               </div>
-              <div>
+              <div class="item-total">
                 ${formatToRupiah(item.price * item.quantity)}
               </div>
             </div>
           `).join('')}
+          
           <div class="divider"></div>
+          
           <div class="total">
             <div class="item">
-              <div>Total</div>
-              <div>${formatToRupiah(calculateTotal())}</div>
+              <div class="item-details">Total</div>
+              <div class="item-total">${formatToRupiah(calculateTotal())}</div>
             </div>
           </div>
+          
           <div class="footer">
             <p>Terima kasih telah berbelanja!</p>
             <p>Powered by KasirKuy</p>
           </div>
+
           <script>
-            window.onload = function() {
+            function saveAsPDF() {
+              const filename = 'struk-' + new Date().getTime() + '.pdf';
               window.print();
-              setTimeout(function() {
-                window.close();
-              }, 500);
-            };
+            }
+
+            // Auto print option
+            if (window.location.hash === '#autoprint') {
+              window.print();
+              setTimeout(() => window.close(), 500);
+            }
           </script>
         </body>
         </html>

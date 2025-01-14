@@ -257,6 +257,7 @@ export default function AdminDashboard() {
                   <tr className="bg-gray-50">
                     <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">Nama Pengguna</th>
                     <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">Role</th>
+                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">Tanggal Dibuat</th>
                     <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">Aksi</th>
                   </tr>
                 </thead>
@@ -265,20 +266,34 @@ export default function AdminDashboard() {
                     <tr key={user.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-900">{user.username}</td>
                       <td className="px-4 py-3 text-sm text-gray-900">
-                        {user.is_admin ? 'Admin' : 'User'}
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          user.is_admin ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {user.is_admin ? 'Admin' : 'User'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {new Date(user.created_at).toLocaleDateString('id-ID', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
                       </td>
                       <td className="px-4 py-3 text-right space-x-2">
                         <button
                           onClick={() => setEditingUser(user)}
                           className="text-gray-600 hover:text-gray-800"
                         >
-                          <FaEdit className="w-4 h-4" />
+                          <FaEdit className="w-4 h-4 inline" />
                         </button>
                         <button
                           onClick={() => handleDeleteUser(user.id)}
                           className="text-red-600 hover:text-red-800"
+                          disabled={user.is_admin && users.filter(u => u.is_admin).length === 1}
                         >
-                          <FaTrash className="w-4 h-4" />
+                          <FaTrash className="w-4 h-4 inline" />
                         </button>
                       </td>
                     </tr>
@@ -299,15 +314,48 @@ export default function AdminDashboard() {
                   <tr className="bg-gray-50">
                     <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">Nama Produk</th>
                     <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">Harga</th>
+                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">Dibuat Oleh</th>
+                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">Tanggal Dibuat</th>
                     <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {products.map((product) => (
                     <tr key={product.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-900">{product.name}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        <div className="flex items-center space-x-3">
+                          {product.image_url ? (
+                            <img
+                              src={`${process.env.NEXT_PUBLIC_API_URL}${product.image_url}`}
+                              alt={product.name}
+                              className="w-8 h-8 rounded-full object-cover"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = '/placeholder.png';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                              <FaBox className="w-4 h-4 text-gray-400" />
+                            </div>
+                          )}
+                          <span>{product.name}</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {formatToRupiah(product.price)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {product.created_by}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {new Date(product.created_at).toLocaleDateString('id-ID', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button
