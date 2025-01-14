@@ -60,19 +60,21 @@ export function AuthProvider({ children }) {
 
   const login = async (username, password) => {
     try {
-      const response = await api.post('/login', { username, password });
+      const response = await api.post('/api/login', { username, password });
       const { token, user: userData } = response.data;
       
       // Store token in cookie
-      Cookies.set(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME, token, {
+      Cookies.set(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME || 'kasirkuy_auth_token', token, {
         expires: 7, // 7 days
-        secure: process.env.NODE_ENV === 'production', // Only send over HTTPS in production
-        sameSite: 'Lax'
+        secure: true,
+        sameSite: 'Lax',
+        path: '/'
       });
       
       setUser(userData);
       return userData;
     } catch (error) {
+      console.error('Login error:', error);
       throw error;
     }
   };

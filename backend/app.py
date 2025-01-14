@@ -50,13 +50,15 @@ CORS(app, resources={
             "https://kasirkuy-git-main-wildan-hanifs-projects.vercel.app",
             "https://kasirkuy-adjn6wdqz-wildan-hanifs-projects.vercel.app",
             "https://kasirkuy.vercel.app",
-            "https://sticky-marie-ann-kasirkuy-f46a83f8.koyeb.app"  # Add your Koyeb domain
+            "https://sticky-marie-ann-kasirkuy-f46a83f8.koyeb.app",
+            "https://*.vercel.app"  # Allow all Vercel subdomains
         ],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
         "expose_headers": ["Content-Range", "X-Content-Range"],
         "supports_credentials": True,
-        "max_age": 600
+        "max_age": 3600,  # Increase preflight cache to 1 hour
+        "allow_credentials": True  # Explicitly allow credentials
     }
 })
 
@@ -328,144 +330,80 @@ def is_password_valid(password):
 @strict_rate_limit()
 def register():
     try:
-        # Check if Supabase client is initialized
-        if not supabase:
-            print("Supabase client not initialized")
-            return jsonify({"error": "Database connection error. Please try again later."}), 500
-
         data = request.get_json()
-        if not data:
-            print("No data provided in request")
-            return jsonify({"error": "No data provided"}), 400
-            
-        username = data.get('username', '').strip()
-        password = data.get('password', '')
-        
-        print(f"Registration attempt for username: {username}")
+        username = data.get('username')
+        password = data.get('password')
         
         # Validate input
         if not username or not password:
-            print("Missing username or password")
-            return jsonify({"error": "Username and password are required"}), 400
-        
-        # Check username length
-        if len(username) < 3 or len(username) > 50:
-            print("Invalid username length")
-            return jsonify({"error": "Username must be between 3 and 50 characters"}), 400
-        
-        try:
-            # Check if username exists
-            print(f"Checking if username exists: {username}")
-            existing_user = supabase.from_('users').select("*").eq('username', username).execute()
-            print(f"Username check response: {existing_user}")
+            return jsonify({'message': 'Username and password are required'}), 400
             
-            if existing_user.data:
-                print("Username already exists")
-                return jsonify({"error": "Username already exists"}), 409
+        # Check if username already exists
+        existing_user = get_user_by_username(username)
+        if existing_user.data:
+            return jsonify({'message': 'Username already exists'}), 409
             
-            # Create user with hashed password
-            print("Creating new user")
-            hashed_password = generate_password_hash(password, method=PASSWORD_HASH_METHOD)
-            user_data = {
-                'username': username,
-                'password': hashed_password,
-                'is_admin': False,
-                'created_at': datetime.now(timezone.utc).isoformat()
-            }
+        # Create user
+        result = create_user(username, password)
+        if not result.data:
+            return jsonify({'message': 'Failed to create user'}), 500
             
-            response = supabase.from_('users').insert(user_data).execute()
-            print(f"User creation response: {response}")
-            
-            if not response.data:
-                print("Failed to create user - no data in response")
-                return jsonify({"error": "Failed to create user"}), 500
-            
-            user = response.data[0]
-            print(f"User created successfully: {user}")
-            
-            # Create access token
-            access_token = create_access_token(
-                identity=user['id'],
-                additional_claims={"is_admin": user.get('is_admin', False)}
-            )
-            
-            return jsonify({
-                "message": "User registered successfully",
-                "access_token": access_token,
-                "user": {
-                    "id": user['id'],
-                    "username": user['username'],
-                    "is_admin": user.get('is_admin', False)
-                }
-            }), 201
-            
-        except Exception as e:
-            print(f"Database operation error: {str(e)}")
-            return jsonify({"error": "Database error occurred"}), 500
+        return jsonify({'message': 'User registered successfully'}), 201
             
     except Exception as e:
         print(f"Registration error: {str(e)}")
-        return jsonify({"error": "An error occurred during registration"}), 500
+        return jsonify({'message': 'An error occurred during registration'}), 500
 
 @app.route('/api/login', methods=['POST'])
 @strict_rate_limit()
 def login():
     try:
         data = request.get_json()
-        if not data:
-            return jsonify({'message': 'No input data provided'}), 400
-
         username = data.get('username')
         password = data.get('password')
-
+        
+        # Validate input
         if not username or not password:
-            return jsonify({'message': 'Missing username or password'}), 400
-
-        # Get user from database
+            return jsonify({'message': 'Username and password are required'}), 400
+            
+        # Get user
         result = get_user_by_username(username)
         if not result.data:
             return jsonify({'message': 'Invalid username or password'}), 401
-
+            
         user = result.data[0]
         
         # Verify password
-        if not check_password_hash(user['password'], password):
-            record_failed_login(request.remote_addr)
+        if not verify_password(password, user['password']):
             return jsonify({'message': 'Invalid username or password'}), 401
-
+            
         # Create access token
-        access_token = create_access_token(
-            identity=user['id'],
-            additional_claims={
-                'username': user['username'],
-                'is_admin': user['is_admin']
-            }
-        )
-
-        # Prepare response
+        access_token = create_access_token(identity=user['id'])
+        
+        # Set cookie and prepare response
         response = jsonify({
             'message': 'Login successful',
-            'token': access_token,
+            'token': access_token,  # Include token in response body
             'user': {
                 'id': user['id'],
                 'username': user['username'],
                 'is_admin': user['is_admin']
             }
         })
-
+        
         # Set cookie
         response.set_cookie(
-            AUTH_COOKIE_NAME,
+            AUTH_COOKIE_NAME,  # Use the constant instead of hardcoded value
             value=access_token,
-            max_age=JWT_ACCESS_TOKEN_EXPIRES,
+            max_age=JWT_ACCESS_TOKEN_EXPIRES.total_seconds(),
             secure=True,
             httponly=True,
             samesite='Lax',
             path='/'
         )
-
+        
         return response
-
+            
     except Exception as e:
         print(f"Login error: {str(e)}")
         return jsonify({'message': 'An error occurred during login'}), 500
@@ -473,40 +411,7 @@ def login():
 def verify_password(password, stored_password_hash):
     """Verify a password against a stored hash"""
     try:
-        # For debugging (remove in production)
-        print(f"Verifying password hash format: {stored_password_hash[:20]}...")
-        
-        if not stored_password_hash or not password:
-            return False
-            
-        # Extract hash components
-        parts = stored_password_hash.split('$')
-        if len(parts) != 4:
-            print(f"Invalid hash format. Expected 4 parts, got {len(parts)}")
-            return False
-            
-        method, iterations, salt = parts[1:4]
-        if method != 'pbkdf2-sha256':
-            print(f"Unsupported hash method: {method}")
-            return False
-            
-        iterations = int(iterations)
-        
-        # Hash the provided password
-        import hashlib
-        import base64
-        
-        dk = hashlib.pbkdf2_hmac(
-            'sha256', 
-            password.encode('utf-8'),
-            salt.encode('utf-8'),
-            iterations
-        )
-        
-        # Compare hashes
-        encoded = base64.b64encode(dk).decode('utf-8')
-        return encoded == stored_password_hash
-        
+        return check_password_hash(stored_password_hash, password)
     except Exception as e:
         print(f"Password verification error: {str(e)}")
         return False
@@ -1227,6 +1132,11 @@ def after_request(response):
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, Origin, X-Requested-With'
         response.headers['Access-Control-Max-Age'] = '600'
     return response
+
+# Add a general OPTIONS handler for all routes
+@app.route('/api/<path:path>', methods=['OPTIONS'])
+def handle_options(path):
+    return '', 204
 
 if __name__ == '__main__':
     # Create default admin user if none exists
