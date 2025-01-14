@@ -20,6 +20,7 @@ export default function AdminDashboard() {
   const [products, setProducts] = useState([]);
   const [newUser, setNewUser] = useState({ username: '', password: '', is_admin: false });
   const [editingUser, setEditingUser] = useState(null);
+  const [editingProduct, setEditingProduct] = useState(null);
   const { user, api, logout } = useAuth();
   const router = useRouter();
 
@@ -64,7 +65,7 @@ export default function AdminDashboard() {
     }
 
     try {
-      await api.post('/api/users', newUser);
+      await api.post('/api/admin/users', newUser);  // Changed endpoint
       setNewUser({ username: '', password: '', is_admin: false });
       toast.success('Pengguna berhasil ditambahkan');
       fetchData(); // Refresh data
@@ -81,7 +82,10 @@ export default function AdminDashboard() {
     }
 
     try {
-      await api.put(`/api/users/${userId}`, updatedData);
+      await api.put(`/api/admin/users/${userId}`, {
+        username: updatedData.username,
+        is_admin: updatedData.is_admin
+      });
       toast.success('Pengguna berhasil diperbarui');
       fetchData(); // Refresh data
       setEditingUser(null);
@@ -104,7 +108,7 @@ export default function AdminDashboard() {
     if (!window.confirm('Apakah Anda yakin ingin menghapus pengguna ini?')) return;
     
     try {
-      await api.delete(`/api/users/${userId}`);
+      await api.delete(`/api/admin/users/${userId}`);  // Changed endpoint
       toast.success('Pengguna berhasil dihapus');
       fetchData(); // Refresh data
     } catch (error) {
@@ -117,7 +121,7 @@ export default function AdminDashboard() {
     if (!window.confirm('Apakah Anda yakin ingin menghapus produk ini?')) return;
     
     try {
-      await api.delete(`/api/products/${productId}`);
+      await api.delete(`/api/admin/products/${productId}`);  // Changed endpoint
       toast.success('Produk berhasil dihapus');
       fetchData(); // Refresh data
     } catch (error) {
@@ -133,6 +137,29 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error('Error logging out:', error);
       toast.error('Gagal keluar. Silakan coba lagi.');
+    }
+  };
+
+  const handleUpdateProduct = async (productId, updatedData) => {
+    try {
+      const formData = new FormData();
+      formData.append('name', updatedData.name.trim());
+      formData.append('price', updatedData.price);
+      if (updatedData.image) {
+        formData.append('image', updatedData.image);
+      }
+
+      await api.put(`/api/admin/products/${productId}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      toast.success('Produk berhasil diperbarui');
+      fetchData(); // Refresh data
+      setEditingProduct(null);
+    } catch (error) {
+      console.error('Error updating product:', error);
+      toast.error(error.response?.data?.message || 'Gagal memperbarui produk');
     }
   };
 
@@ -380,11 +407,30 @@ export default function AdminDashboard() {
                               <FaBox className="w-4 h-4 text-gray-400" />
                             </div>
                           )}
-                          <span>{product.name}</span>
+                          {editingProduct?.id === product.id ? (
+                            <input
+                              type="text"
+                              value={editingProduct.name}
+                              onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                              className="px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900 flex-1"
+                            />
+                          ) : (
+                            <span>{product.name}</span>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">
-                        {formatToRupiah(product.price)}
+                        {editingProduct?.id === product.id ? (
+                          <input
+                            type="number"
+                            value={editingProduct.price}
+                            onChange={(e) => setEditingProduct({ ...editingProduct, price: e.target.value })}
+                            className="px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900 w-32"
+                            min="0"
+                          />
+                        ) : (
+                          formatToRupiah(product.price)
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {product.user_name}
@@ -398,13 +444,38 @@ export default function AdminDashboard() {
                           minute: '2-digit'
                         })}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => handleDeleteProduct(product.id)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <FaTrash className="w-4 h-4" />
-                        </button>
+                      <td className="px-4 py-3 text-right space-x-2">
+                        {editingProduct?.id === product.id ? (
+                          <>
+                            <button
+                              onClick={() => handleUpdateProduct(product.id, editingProduct)}
+                              className="text-green-600 hover:text-green-800"
+                            >
+                              <FaCheck className="w-4 h-4 inline" />
+                            </button>
+                            <button
+                              onClick={() => setEditingProduct(null)}
+                              className="text-gray-600 hover:text-gray-800"
+                            >
+                              <FaTimes className="w-4 h-4 inline" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => setEditingProduct(product)}
+                              className="text-gray-600 hover:text-gray-800"
+                            >
+                              <FaEdit className="w-4 h-4 inline" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProduct(product.id)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <FaTrash className="w-4 h-4 inline" />
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))}
