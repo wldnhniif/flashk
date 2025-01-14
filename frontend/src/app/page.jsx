@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
@@ -12,17 +12,24 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const { login, register } = useAuth();
+  const { login, register, user, loading } = useAuth();
   const router = useRouter();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (user && !loading) {
+      router.push('/dashboard');
+    }
+  }, [user, loading, router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isLoading) return;
     setIsLoading(true);
 
     try {
       if (isLogin) {
         await login(username, password);
-        router.push('/dashboard');
       } else {
         await register(username, password);
         setIsLogin(true);
@@ -30,6 +37,7 @@ export default function LoginPage() {
         setPassword('');
       }
     } catch (error) {
+      console.error('Auth error:', error);
       // Convert error to user-friendly message
       let errorMessage;
       
@@ -52,6 +60,20 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <FaSpinner className="w-8 h-8 animate-spin text-gray-800" />
+      </div>
+    );
+  }
+
+  // Don't show login page if already authenticated
+  if (user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">

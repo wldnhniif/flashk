@@ -33,20 +33,28 @@ export function AuthProvider({ children }) {
           secure: true,
           sameSite: 'None'
         });
+        // Redirect to login page if not already there
+        if (window.location.pathname !== '/') {
+          router.push('/');
+        }
       }
       return Promise.reject(error);
     }
   );
 
-  // Check authentication status on mount
+  // Check authentication status on mount and when user changes
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const response = await api.get('/api/verify');
         setUser(response.data);
+        // If we're on the login page and user is authenticated, redirect to dashboard
+        if (window.location.pathname === '/') {
+          router.push('/dashboard');
+        }
       } catch (error) {
         setUser(null);
-        // Only redirect if not already on login page
+        // Only redirect to login if not already there
         if (window.location.pathname !== '/') {
           router.push('/');
         }
@@ -62,9 +70,22 @@ export function AuthProvider({ children }) {
     try {
       const response = await api.post('/api/login', { username, password });
       setUser(response.data.user);
+      
+      // Set the cookie if it's not automatically set by the server
+      if (!Cookies.get(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME)) {
+        Cookies.set(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME, response.data.token, {
+          path: '/',
+          domain: window.location.hostname,
+          secure: true,
+          sameSite: 'None'
+        });
+      }
+      
       toast.success('Berhasil masuk');
+      router.push('/dashboard');
       return response.data;
     } catch (error) {
+      console.error('Login error:', error);
       throw error;
     }
   };
@@ -75,6 +96,7 @@ export function AuthProvider({ children }) {
       toast.success('Berhasil mendaftar');
       return response.data;
     } catch (error) {
+      console.error('Register error:', error);
       throw error;
     }
   };
@@ -102,7 +124,8 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
-    api
+    api,
+    loading
   };
 
   return (

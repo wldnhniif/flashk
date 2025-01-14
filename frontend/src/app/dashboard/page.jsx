@@ -22,8 +22,30 @@ export default function Dashboard() {
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const { user, logout, api } = useAuth();
+  const { user, logout, api, loading } = useAuth();
   const router = useRouter();
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/');
+    }
+  }, [user, loading, router]);
+
+  useEffect(() => {
+    if (user) {
+      fetchProducts();
+    }
+  }, [user]);
+
+  // Show loading state while checking authentication
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <FaSpinner className="w-8 h-8 animate-spin text-gray-800" />
+      </div>
+    );
+  }
 
   const handleLogout = async () => {
     try {
@@ -34,14 +56,6 @@ export default function Dashboard() {
       toast.error('Gagal keluar. Silakan coba lagi.');
     }
   };
-
-  useEffect(() => {
-    if (!user) {
-      router.push('/');
-      return;
-    }
-    fetchProducts();
-  }, [user, router]);
 
   const fetchProducts = async () => {
     try {
