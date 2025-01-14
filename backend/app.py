@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, send_from_directory, after_this_request
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, verify_jwt_in_request
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -764,9 +764,27 @@ def delete_user_product(product_id):
 @app.route('/api/uploads/<filename>')
 def uploaded_file(filename):
     try:
-        response = send_file(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        if not os.path.exists(file_path):
+            return jsonify({"error": "File not found"}), 404
+
+        response = send_file(file_path)
         # Add CORS headers
         response.headers.add('Access-Control-Allow-Origin', '*')
+        
+        # If this is a receipt file, delete it after sending
+        if filename.startswith('receipt_'):
+            # We need to use after_this_request to delete the file after it's sent
+            @after_this_request
+            def remove_file(response):
+                try:
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        print(f"Deleted receipt file after serving: {filename}")
+                except Exception as e:
+                    print(f"Error deleting receipt file {filename}: {str(e)}")
+                return response
+
         return response
     except Exception as e:
         print(f"Error serving file {filename}: {str(e)}")
@@ -788,170 +806,146 @@ def generate_receipt():
         filename = f"receipt_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}.pdf"
         pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
-        # Create PDF with custom page size and margins
-        page_width = 3.2 * inch  # Slightly reduced width
-        page_height = 7.0 * inch
+        # Create PDF with professional dimensions
+        page_width = 2.8 * inch  # Standard receipt width
+        page_height = 6.0 * inch  # Adjustable based on content
         doc = SimpleDocTemplate(
             pdf_path,
             pagesize=(page_width, page_height),
-            rightMargin=0.15*inch,  # Reduced margins
-            leftMargin=0.15*inch,
-            topMargin=0.3*inch,
-            bottomMargin=0.3*inch
+            rightMargin=0.1*inch,
+            leftMargin=0.1*inch,
+            topMargin=0.2*inch,
+            bottomMargin=0.2*inch
         )
 
         # Prepare the story (content)
         story = []
         styles = getSampleStyleSheet()
 
-        # Modern styling with custom colors
-        primary_color = colors.HexColor('#2563eb')  # Modern blue
-        text_color = colors.HexColor('#1f2937')    # Dark gray
-        secondary_color = colors.HexColor('#6b7280')  # Medium gray
-        light_bg = colors.HexColor('#f3f4f6')      # Light gray background
+        # Professional color scheme
+        primary_color = colors.HexColor('#000000')  # Black for main text
+        secondary_color = colors.HexColor('#666666')  # Gray for secondary text
+        border_color = colors.HexColor('#CCCCCC')  # Light gray for borders
 
-        # Custom styles with adjusted font sizes
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=14,  # Reduced from 16
-            spaceAfter=4,  # Reduced spacing
+        # Header style - Clean and professional
+        header_style = ParagraphStyle(
+            'Header',
+            parent=styles['Normal'],
+            fontSize=10,
             alignment=1,
+            spaceAfter=2,
             textColor=primary_color,
             fontName='Helvetica-Bold'
         )
 
-        subtitle_style = ParagraphStyle(
-            'Subtitle',
+        # Subheader style
+        subheader_style = ParagraphStyle(
+            'Subheader',
             parent=styles['Normal'],
-            fontSize=8,  # Reduced from 10
-            spaceAfter=8,  # Reduced spacing
+            fontSize=7,
             alignment=1,
-            textColor=text_color,
-            fontName='Helvetica'
-        )
-
-        date_style = ParagraphStyle(
-            'DateStyle',
-            parent=styles['Normal'],
-            fontSize=7,  # Reduced from 8
-            spaceAfter=12,  # Adjusted spacing
-            alignment=1,
+            spaceAfter=2,
             textColor=secondary_color,
             fontName='Helvetica'
         )
 
-        # Add header
-        story.append(Paragraph("KasirKuy", title_style))
-        story.append(Paragraph("Sales Receipt", subtitle_style))
+        # Add header content
+        story.append(Paragraph("KasirKuy", header_style))
         
-        # Add date and time with improved formatting
+        # Add date and time
         current_time = datetime.now()
-        date_str = current_time.strftime('%B %d, %Y')
-        time_str = current_time.strftime('%I:%M %p')
-        story.append(Paragraph(f"{date_str} • {time_str}", date_style))
+        date_str = current_time.strftime('%d/%m/%Y')
+        time_str = current_time.strftime('%H:%M')
+        story.append(Paragraph(f"{date_str} {time_str}", subheader_style))
 
-        # Add subtle divider
+        # Add separator
         story.append(HRFlowable(
             width="100%",
             thickness=0.5,
-            lineCap='round',
-            color=colors.HexColor('#e5e7eb'),
-            spaceBefore=6,
-            spaceAfter=8
+            color=border_color,
+            spaceBefore=4,
+            spaceAfter=4
         ))
 
-        # Improved price formatting with proper spacing
-        def format_rupiah(amount):
-            formatted = f"Rp {amount:,.0f}".replace(',', '.')
-            return formatted.rjust(10)  # Reduced right justification
+        # Function to format currency
+        def format_currency(amount):
+            return f"Rp {amount:,.0f}".replace(',', '.')
 
-        # Modern table styling with adjusted spacing
+        # Table style - Clean and minimal
         table_style = TableStyle([
-            # Header styling
-            ('BACKGROUND', (0, 0), (-1, 0), light_bg),
-            ('TEXTCOLOR', (0, 0), (-1, 0), text_color),
-            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            # Headers
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 7),  # Reduced header font size
+            ('FONTSIZE', (0, 0), (-1, 0), 7),
+            ('TEXTCOLOR', (0, 0), (-1, 0), primary_color),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
             ('TOPPADDING', (0, 0), (-1, 0), 4),
-            ('LINEBELOW', (0, 0), (-1, 0), 0.5, colors.HexColor('#e5e7eb')),
             
-            # Content styling
-            ('FONTNAME', (0, 1), (-1, -3), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -3), 7),  # Reduced content font size
-            ('ALIGN', (0, 1), (0, -3), 'LEFT'),     # Item names left-aligned
-            ('ALIGN', (1, 1), (1, -3), 'CENTER'),   # Quantities center-aligned
-            ('ALIGN', (2, 1), (-1, -3), 'RIGHT'),   # Prices and totals right-aligned
-            ('TEXTCOLOR', (0, 1), (-1, -3), text_color),
-            ('BOTTOMPADDING', (0, 1), (-1, -3), 3),  # Reduced padding
-            ('TOPPADDING', (0, 1), (-1, -3), 3),     # Reduced padding
-            ('GRID', (0, 0), (-1, -2), 0.5, colors.HexColor('#f3f4f6')),
+            # Content
+            ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -2), 7),
+            ('TEXTCOLOR', (0, 1), (-1, -2), primary_color),
+            ('BOTTOMPADDING', (0, 1), (-1, -2), 2),
+            ('TOPPADDING', (0, 1), (-1, -2), 2),
             
-            # Total section styling
-            ('FONTNAME', (-2, -1), (-1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (-2, -1), (-1, -1), 8),  # Reduced total font size
-            ('TEXTCOLOR', (-2, -1), (-1, -1), primary_color),
-            ('ALIGN', (-2, -1), (-1, -1), 'RIGHT'),
-            ('LINEABOVE', (-2, -1), (-1, -1), 1, colors.HexColor('#e5e7eb')),
-            ('TOPPADDING', (-2, -1), (-1, -1), 8),
-            ('BOTTOMPADDING', (-2, -1), (-1, -1), 4),
-            
-            # Add minimal spacing between columns
-            ('LEFTPADDING', (0, 0), (-1, -1), 3),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+            # Total row
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, -1), (-1, -1), 8),
+            ('TEXTCOLOR', (0, -1), (-1, -1), primary_color),
+            ('LINEABOVE', (0, -1), (-1, -1), 0.5, border_color),
+            ('TOPPADDING', (0, -1), (-1, -1), 4),
         ])
 
-        # Prepare table data with improved formatting
-        table_data = [['Item', 'Qty', 'Price', 'Total']]
+        # Prepare table data
+        table_data = []
+        
+        # Add items
         for item in items:
             name = item['name']
-            if len(name) > 16:  # Reduced max length
-                name = name[:14] + '..'
-            table_data.append([
-                name,
-                str(item['quantity']),
-                format_rupiah(item['price']),
-                format_rupiah(item['price'] * item['quantity'])
-            ])
-        
-        # Add total row
-        table_data.append(['', '', 'Total:', format_rupiah(total)])
+            if len(name) > 20:  # Limit name length
+                name = name[:18] + '..'
+            
+            # Format: Item name, Qty x Price, Total
+            qty_price = f"{item['quantity']} x {format_currency(item['price'])}"
+            total_price = format_currency(item['price'] * item['quantity'])
+            
+            table_data.append([name, qty_price, total_price])
 
-        # Create and style the table with optimized column widths
-        col_widths = [1.4*inch, 0.3*inch, 0.65*inch, 0.65*inch]  # Adjusted widths
+        # Add total
+        table_data.append(['Total', '', format_currency(total)])
+
+        # Create and style the table
+        col_widths = [1.4*inch, 0.7*inch, 0.5*inch]  # Adjusted column widths
         table = Table(table_data, colWidths=col_widths)
         table.setStyle(table_style)
         story.append(table)
 
-        # Add bottom divider
+        # Add separator before footer
         story.append(HRFlowable(
             width="100%",
             thickness=0.5,
-            lineCap='round',
-            color=colors.HexColor('#e5e7eb'),
-            spaceBefore=8,
-            spaceAfter=8
+            color=border_color,
+            spaceBefore=6,
+            spaceAfter=6
         ))
 
-        # Footer styling with smaller font
+        # Footer style
         footer_style = ParagraphStyle(
             'Footer',
             parent=styles['Normal'],
-            fontSize=7,  # Reduced font size
+            fontSize=6,
             alignment=1,
             textColor=secondary_color,
             fontName='Helvetica',
-            spaceBefore=4,
+            spaceBefore=0,
             spaceAfter=2
         )
-        
+
         # Add footer
-        story.append(Paragraph("Thank you for your purchase!", footer_style))
-        story.append(Spacer(1, 2))
-        story.append(Paragraph("Please come again", footer_style))
-        
+        story.append(Paragraph("Terima kasih atas kunjungan Anda", footer_style))
+        story.append(Paragraph("Sampai jumpa kembali", footer_style))
+
         # Build PDF
         doc.build(story)
 
@@ -1195,18 +1189,22 @@ def cleanup_old_images():
                     filename = product['image_url'].split('/')[-1]
                     active_images.add(filename)
         
-        # Check upload folder and remove only receipt files and truly orphaned images
+        # Check upload folder and remove receipt files and truly orphaned images
+        current_time = time.time()
         for filename in os.listdir(UPLOAD_FOLDER):
             # Skip non-files
             if not os.path.isfile(os.path.join(UPLOAD_FOLDER, filename)):
                 continue
                 
-            # Always clean up receipt files (they start with 'receipt_')
+            file_path = os.path.join(UPLOAD_FOLDER, filename)
+                
+            # Clean up receipt files that are older than 5 minutes
             if filename.startswith('receipt_'):
-                file_path = os.path.join(UPLOAD_FOLDER, filename)
                 try:
-                    os.remove(file_path)
-                    print(f"Cleaned up receipt file: {filename}")
+                    file_age = current_time - os.path.getmtime(file_path)
+                    if file_age > 300:  # 5 minutes in seconds
+                        os.remove(file_path)
+                        print(f"Cleaned up old receipt file: {filename}")
                 except Exception as e:
                     print(f"Error deleting receipt file {filename}: {str(e)}")
                 continue

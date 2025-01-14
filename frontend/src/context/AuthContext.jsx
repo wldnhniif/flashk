@@ -34,12 +34,9 @@ export function AuthProvider({ children }) {
   // Add response interceptor to handle errors
   api.interceptors.response.use(
     (response) => {
-      console.log('Response received:', response.config.url);
       return response;
     },
     (error) => {
-      console.error('Response error:', error);
-      
       // Handle 401 Unauthorized
       if (error.response?.status === 401) {
         localStorage.removeItem('token');
@@ -47,10 +44,20 @@ export function AuthProvider({ children }) {
       }
       
       // Extract error message
-      const errorMessage = error.response?.data?.error || 
-                          error.response?.data?.message ||
-                          error.message ||
-                          'An error occurred';
+      let errorMessage;
+      if (error.response?.status === 401) {
+        errorMessage = 'Nama pengguna atau kata sandi salah';
+      } else if (error.response?.status === 409) {
+        errorMessage = 'Nama pengguna sudah digunakan';
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message && !error.message.includes('Network Error')) {
+        errorMessage = error.message;
+      } else {
+        errorMessage = 'Terjadi kesalahan. Silakan coba lagi.';
+      }
                           
       return Promise.reject({
         error: errorMessage,
@@ -73,16 +80,14 @@ export function AuthProvider({ children }) {
       
       return true;
     } catch (error) {
-      throw error?.error || error?.message || 'Login failed';
+      throw error?.error || 'Gagal masuk. Silakan coba lagi.';
     }
   };
 
   const register = async (username, password) => {
     try {
-      console.log('Attempting registration with username:', username);
       const response = await api.post('/api/register', { username, password });
       
-      // If registration is successful, automatically log in
       const { access_token, user } = response.data;
       localStorage.setItem('token', access_token);
       setUser({
@@ -93,24 +98,7 @@ export function AuthProvider({ children }) {
       
       return true;
     } catch (error) {
-      console.error('Registration error:', error);
-      
-      // Extract error message from the error object
-      let errorMessage;
-      if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.error) {
-        errorMessage = error.error;
-      } else if (error.message) {
-        errorMessage = error.message;
-      } else {
-        errorMessage = 'Registration failed. Please try again.';
-      }
-      
-      console.log('Throwing error message:', errorMessage);
-      throw errorMessage;
+      throw error?.error || 'Pendaftaran gagal. Silakan coba lagi.';
     }
   };
 

@@ -40,7 +40,7 @@ export default function AdminDashboard() {
       setUsers(usersRes.data);
       setProducts(productsRes.data);
     } catch (error) {
-      toast.error('Failed to fetch data');
+      toast.error('Gagal mengambil data');
       console.error('Fetch error:', error);
     }
   };
@@ -51,9 +51,9 @@ export default function AdminDashboard() {
       const response = await api.post('/api/admin/users', newUser);
       setUsers([...users, response.data]);
       setNewUser({ username: '', password: '', is_admin: false });
-      toast.success('User added successfully');
+      toast.success('Pengguna berhasil ditambahkan');
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to add user');
+      toast.error(error.response?.data?.error || 'Gagal menambahkan pengguna');
     }
   };
 
@@ -63,39 +63,39 @@ export default function AdminDashboard() {
       const response = await api.put(`/api/admin/users/${editingUser.id}`, editingUser);
       setUsers(users.map(u => u.id === editingUser.id ? response.data : u));
       setEditingUser(null);
-      toast.success('User updated successfully');
+      toast.success('Pengguna berhasil diperbarui');
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to update user');
+      toast.error(error.response?.data?.error || 'Gagal memperbarui pengguna');
     }
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    if (!window.confirm('Apakah Anda yakin ingin menghapus pengguna ini?')) return;
     try {
       console.log('Deleting user:', userId);
       const response = await api.delete(`/api/admin/users/${userId}`);
       if (response.data.message) {
         setUsers(users.filter(u => u.id !== userId));
-        toast.success('User deleted successfully');
+        toast.success('Pengguna berhasil dihapus');
       }
     } catch (error) {
       console.error('Error deleting user:', error);
-      toast.error(error.response?.data?.error || 'Failed to delete user');
+      toast.error(error.response?.data?.error || 'Gagal menghapus pengguna');
     }
   };
 
   const handleDeleteProduct = async (productId) => {
-    if (!window.confirm('Are you sure you want to delete this product?')) return;
+    if (!window.confirm('Apakah Anda yakin ingin menghapus produk ini?')) return;
     try {
       console.log('Deleting product:', productId);
       const response = await api.delete(`/api/admin/products/${productId}`);
       if (response.data.message) {
         setProducts(products.filter(p => p.id !== productId));
-        toast.success('Product deleted successfully');
+        toast.success('Produk berhasil dihapus');
       }
     } catch (error) {
       console.error('Error deleting product:', error);
-      toast.error(error.response?.data?.error || 'Failed to delete product');
+      toast.error(error.response?.data?.error || 'Gagal menghapus produk');
     }
   };
 
@@ -117,7 +117,7 @@ export default function AdminDashboard() {
                 className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
               >
                 <FaArrowLeft className="w-4 h-4 mr-2" />
-                Back to Dashboard
+                Kembali ke Dashboard
               </button>
               <button
                 onClick={() => {
@@ -127,7 +127,7 @@ export default function AdminDashboard() {
                 className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
               >
                 <FaSignOutAlt className="w-4 h-4 mr-2" />
-                Logout
+                Keluar
               </button>
             </div>
           </div>
@@ -140,7 +140,7 @@ export default function AdminDashboard() {
           <div className="bg-white rounded-lg shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-gray-800">Total Users</h3>
+                <h3 className="text-lg font-semibold text-gray-800">Total Pengguna</h3>
                 <p className="text-3xl font-bold text-gray-900 mt-2">{users.length}</p>
               </div>
               <div className="bg-blue-100 p-3 rounded-full">
@@ -151,7 +151,7 @@ export default function AdminDashboard() {
           <div className="bg-white rounded-lg shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-gray-800">Total Products</h3>
+                <h3 className="text-lg font-semibold text-gray-800">Total Produk</h3>
                 <p className="text-3xl font-bold text-gray-900 mt-2">{products.length}</p>
               </div>
               <div className="bg-green-100 p-3 rounded-full">
@@ -164,14 +164,14 @@ export default function AdminDashboard() {
         {/* User Management Section */}
         <div className="bg-white rounded-lg shadow-sm mb-8">
           <div className="p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-6">User Management</h2>
+            <h2 className="text-xl font-semibold text-gray-800 mb-6">Manajemen Pengguna</h2>
             
             {/* Add User Form */}
             {!editingUser && (
               <form onSubmit={handleAddUser} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <input
                   type="text"
-                  placeholder="Username"
+                  placeholder="Nama Pengguna"
                   value={newUser.username}
                   onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
                   className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400"
@@ -200,7 +200,7 @@ export default function AdminDashboard() {
                     className="flex-1 flex items-center justify-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900"
                   >
                     <FaPlus className="w-4 h-4 mr-2" />
-                    Add User
+                    Tambah Pengguna
                   </button>
                 </div>
               </form>
@@ -211,7 +211,7 @@ export default function AdminDashboard() {
               <form onSubmit={handleUpdateUser} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <input
                   type="text"
-                  placeholder="Username"
+                  placeholder="Nama Pengguna"
                   value={editingUser.username}
                   onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })}
                   className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400"
@@ -219,7 +219,7 @@ export default function AdminDashboard() {
                 />
                 <input
                   type="password"
-                  placeholder="New Password (optional)"
+                  placeholder="Kata Sandi Baru (opsional)"
                   value={editingUser.password || ''}
                   onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
                   className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400"
@@ -238,7 +238,7 @@ export default function AdminDashboard() {
                     type="submit"
                     className="flex-1 flex items-center justify-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900"
                   >
-                    Update User
+                    Perbarui Pengguna
                   </button>
                   <button
                     type="button"
@@ -256,11 +256,11 @@ export default function AdminDashboard() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50">
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Products</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Pengguna</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Peran</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produk</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dibuat Pada</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -302,15 +302,15 @@ export default function AdminDashboard() {
         {/* Products Section */}
         <div className="bg-white rounded-lg shadow-sm">
           <div className="p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-6">Products Overview</h2>
+            <h2 className="text-xl font-semibold text-gray-800 mb-6">Ringkasan Produk</h2>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50">
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produk</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Harga</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pemilik</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">

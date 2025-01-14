@@ -6,13 +6,13 @@ import { Toaster } from 'react-hot-toast'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'Cashier App',
-  description: 'A simple cashier application',
+  title: 'KasirKuy',
+  description: 'Aplikasi kasir sederhana',
 }
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="id">
       <body className={inter.className}>
         <AuthProvider>
           {children}

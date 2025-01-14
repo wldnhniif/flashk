@@ -21,22 +21,24 @@ export default function LoginPage() {
     try {
       if (isLogin) {
         await login(username, password);
-        toast.success('Login successful!');
+        toast.success('Berhasil masuk!');
         router.push('/dashboard');
       } else {
-        console.log('Starting registration process...');
         await register(username, password);
-        console.log('Registration completed successfully');
-        toast.success('Registration successful! Please login.');
+        toast.success('Pendaftaran berhasil! Silakan masuk.');
         setIsLogin(true);
         setUsername('');
         setPassword('');
       }
     } catch (error) {
-      console.error('Form submission error:', error);
-      let errorMessage = 'Authentication failed. Please try again.';
+      // Convert error to user-friendly message
+      let errorMessage;
       
-      if (typeof error === 'string') {
+      if (error?.response?.status === 401) {
+        errorMessage = 'Nama pengguna atau kata sandi salah';
+      } else if (error?.response?.status === 409) {
+        errorMessage = 'Nama pengguna sudah digunakan';
+      } else if (typeof error === 'string') {
         errorMessage = error;
       } else if (error?.error) {
         errorMessage = error.error;
@@ -44,10 +46,19 @@ export default function LoginPage() {
         errorMessage = error.message;
       } else if (error?.response?.data?.error) {
         errorMessage = error.response.data.error;
+      } else {
+        errorMessage = 'Terjadi kesalahan. Silakan coba lagi.';
       }
       
-      console.log('Displaying error:', errorMessage);
-      toast.error(errorMessage);
+      // Show error as toast notification
+      toast.error(errorMessage, {
+        duration: 4000,
+        style: {
+          background: '#FEE2E2',
+          color: '#991B1B',
+          border: '1px solid #F87171',
+        },
+      });
     } finally {
       setIsLoading(false);
     }
@@ -65,7 +76,7 @@ export default function LoginPage() {
           </div>
           <h1 className="text-4xl font-bold text-gray-800 mb-2 font-sans">KasirKuy</h1>
           <p className="text-gray-600">
-            {isLogin ? 'Sign in to manage your store' : 'Create an account to get started'}
+            {isLogin ? 'Masuk untuk mengelola toko Anda' : 'Buat akun untuk memulai'}
           </p>
         </div>
 
@@ -75,7 +86,7 @@ export default function LoginPage() {
             {/* Username Field */}
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">
-                Username
+                Nama Pengguna
               </label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -86,7 +97,7 @@ export default function LoginPage() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-gray-500 text-gray-900 transition-all duration-200"
-                  placeholder="Enter your username"
+                  placeholder="Masukkan nama pengguna"
                   required
                   disabled={isLoading}
                 />
@@ -96,7 +107,7 @@ export default function LoginPage() {
             {/* Password Field */}
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">
-                Password
+                Kata Sandi
               </label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -107,7 +118,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-gray-500 text-gray-900 transition-all duration-200"
-                  placeholder="Enter your password"
+                  placeholder="Masukkan kata sandi"
                   required
                   disabled={isLoading}
                 />
@@ -125,12 +136,12 @@ export default function LoginPage() {
               ) : isLogin ? (
                 <>
                   <FaSignInAlt className="w-5 h-5 mr-2" />
-                  Sign In
+                  Masuk
                 </>
               ) : (
                 <>
                   <FaUserPlus className="w-5 h-5 mr-2" />
-                  Register
+                  Daftar
                 </>
               )}
             </button>
@@ -146,14 +157,14 @@ export default function LoginPage() {
               }}
               className="text-sm text-gray-600 hover:text-gray-800 font-medium focus:outline-none transition-colors duration-200"
             >
-              {isLogin ? "Don't have an account? Register" : "Already have an account? Sign in"}
+              {isLogin ? "Belum punya akun? Daftar" : "Sudah punya akun? Masuk"}
             </button>
           </div>
         </div>
 
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-gray-600">
-          <p>© 2024 KasirKuy. All rights reserved.</p>
+          <p>© 2024 KasirKuy. Hak cipta dilindungi.</p>
         </div>
       </div>
     </div>

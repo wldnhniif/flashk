@@ -43,7 +43,7 @@ export default function Dashboard() {
       setProducts(productsWithFormattedUrls);
     } catch (error) {
       console.error('Error fetching products:', error);
-      toast.error('Failed to fetch products');
+      toast.error('Gagal mengambil produk');
     }
   };
 
@@ -93,7 +93,7 @@ export default function Dashboard() {
         setNewProduct({ name: '', price: '', image: null });
         setImagePreview(null);
         toast.dismiss(loadingToast);
-        toast.success('Product added successfully');
+        toast.success('Produk berhasil ditambahkan');
       } else {
         toast.dismiss(loadingToast);
         toast.error('Failed to add product: Invalid response format');
@@ -101,7 +101,7 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error adding product:', error);
       console.error('Error details:', error.response?.data);
-      toast.error(error.response?.data?.error || 'Failed to add product');
+      toast.error(error.response?.data?.error || 'Gagal menambahkan produk');
     }
   };
 
@@ -116,7 +116,7 @@ export default function Dashboard() {
     } else {
       setCart([...cart, { ...product, quantity: 1 }]);
     }
-    toast.success('Added to cart');
+    toast.success('Ditambahkan ke keranjang');
   };
 
   const removeFromCart = (productId) => {
@@ -143,13 +143,13 @@ export default function Dashboard() {
 
   const printReceipt = async () => {
     if (cart.length === 0) {
-      toast.error('Cart is empty');
+      toast.error('Keranjang kosong');
       return;
     }
 
     try {
       // Show loading toast
-      const loadingToast = toast.loading('Generating receipt...');
+      const loadingToast = toast.loading('Membuat struk...');
 
       // Format cart items to send only numerical values for prices
       const items = cart.map(item => ({
@@ -179,11 +179,11 @@ export default function Dashboard() {
 
         // Clear cart after successful receipt generation
         setCart([]);
-        toast.success('Receipt generated successfully');
+        toast.success('Struk berhasil dibuat');
       }
     } catch (error) {
       console.error('Error generating receipt:', error);
-      toast.error(error.response?.data?.error || 'Failed to generate receipt');
+      toast.error(error.response?.data?.error || 'Gagal membuat struk');
     }
   };
 
@@ -210,25 +210,25 @@ export default function Dashboard() {
       setProducts(products.map(p => p.id === updatedProductData.id ? updatedProductData : p));
       setEditingProduct(null);
       setImagePreview(null);
-      toast.success('Product updated successfully');
+      toast.success('Produk berhasil diperbarui');
     } catch (error) {
       console.error('Error updating product:', error);
-      toast.error(error.response?.data?.error || 'Failed to update product');
+      toast.error(error.response?.data?.error || 'Gagal memperbarui produk');
     }
   };
 
   const handleDeleteProduct = async (productId) => {
-    if (!window.confirm('Are you sure you want to delete this product?')) return;
+    if (!window.confirm('Apakah Anda yakin ingin menghapus produk ini?')) return;
     try {
       console.log('Deleting product:', productId);
       const response = await api.delete(`/api/products/${productId}`);
       if (response.data.message) {
         setProducts(products.filter(p => p.id !== productId));
-        toast.success('Product deleted successfully');
+        toast.success('Produk berhasil dihapus');
       }
     } catch (error) {
       console.error('Error deleting product:', error);
-      toast.error(error.response?.data?.error || 'Failed to delete product');
+      toast.error(error.response?.data?.error || 'Gagal menghapus produk');
     }
   };
 
@@ -268,7 +268,7 @@ export default function Dashboard() {
                   onClick={() => router.push('/admin')}
                   className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
                 >
-                  Admin Panel
+                  Panel Admin
                 </button>
               )}
               <button
@@ -276,7 +276,7 @@ export default function Dashboard() {
                 className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
               >
                 <FaSignOutAlt className="w-4 h-4 mr-2" />
-                Logout
+                Keluar
               </button>
             </div>
           </div>
@@ -289,11 +289,11 @@ export default function Dashboard() {
           <div className="lg:col-span-2">
             <div className="bg-white rounded-lg shadow-sm p-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-6">
-                {editingProduct ? 'Edit Product' : 'Add New Product'}
+                {editingProduct ? 'Edit Produk' : 'Tambah Produk Baru'}
               </h2>
               <form onSubmit={editingProduct ? handleUpdateProduct : handleAddProduct} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Product Name</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Nama Produk</label>
                   <input
                     type="text"
                     value={editingProduct ? editingProduct.name : newProduct.name}
@@ -305,7 +305,7 @@ export default function Dashboard() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Price</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Harga</label>
                   <input
                     type="number"
                     step="0.01"
@@ -319,11 +319,11 @@ export default function Dashboard() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Product Image</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Gambar Produk</label>
                   <div className="flex items-center space-x-4">
                     <label className="flex items-center px-4 py-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50">
                       <FaImage className="w-5 h-5 text-gray-500 mr-2" />
-                      <span className="text-sm text-gray-600">Choose Image</span>
+                      <span className="text-sm text-gray-600">Pilih Gambar</span>
                       <input
                         type="file"
                         onChange={editingProduct ? handleEditImageChange : handleImageChange}
@@ -342,7 +342,7 @@ export default function Dashboard() {
                     className="flex-1 flex items-center justify-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                   >
                     <FaPlus className="w-4 h-4 mr-2" />
-                    {editingProduct ? 'Update Product' : 'Add Product'}
+                    {editingProduct ? 'Perbarui Produk' : 'Tambah Produk'}
                   </button>
                   {editingProduct && (
                     <button
@@ -354,7 +354,7 @@ export default function Dashboard() {
                       }}
                       className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md"
                     >
-                      Cancel
+                      Batal
                     </button>
                   )}
                 </div>
@@ -383,7 +383,7 @@ export default function Dashboard() {
                       <div className="w-full h-full bg-gray-100 flex items-center justify-center">
                         <div className="text-center">
                           <FaImage className="w-12 h-12 text-gray-400 mx-auto" />
-                          <p className="mt-2 text-sm text-gray-500">No image available</p>
+                          <p className="mt-2 text-sm text-gray-500">Tidak ada gambar</p>
                         </div>
                       </div>
                     )}
@@ -397,7 +397,7 @@ export default function Dashboard() {
                         className="flex-1 flex items-center justify-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900"
                       >
                         <FaShoppingCart className="w-4 h-4 mr-2" />
-                        Add to Cart
+                        Tambah ke Keranjang
                       </button>
                       <button
                         onClick={() => handleEditClick(product)}
@@ -422,12 +422,12 @@ export default function Dashboard() {
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-sm p-6 sticky top-8">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-800">Shopping Cart</h2>
+                <h2 className="text-xl font-semibold text-gray-800">Keranjang Belanja</h2>
                 <FaShoppingCart className="w-6 h-6 text-gray-600" />
               </div>
               
               {cart.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">Your cart is empty</p>
+                <p className="text-gray-500 text-center py-4">Keranjang belanja kosong</p>
               ) : (
                 <div className="space-y-4">
                   {cart.map((item) => (
@@ -473,7 +473,7 @@ export default function Dashboard() {
                       className="w-full flex items-center justify-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900"
                     >
                       <FaPrint className="w-4 h-4 mr-2" />
-                      Print Receipt
+                      Cetak Struk
                     </button>
                   </div>
                 </div>
