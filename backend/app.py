@@ -41,6 +41,25 @@ if missing_vars:
 # Initialize Flask app
 app = Flask(__name__)
 
+# Configure CORS with cookie support
+CORS(app, resources={
+    r"/api/*": {
+        "origins": [
+            "http://localhost:3000",
+            "https://kasirkuy-one.vercel.app",
+            "https://kasirkuy-git-main-wildan-hanifs-projects.vercel.app",
+            "https://kasirkuy-adjn6wdqz-wildan-hanifs-projects.vercel.app",
+            "https://kasirkuy.vercel.app",
+            "https://sticky-marie-ann-kasirkuy-f46a83f8.koyeb.app"  # Add your Koyeb domain
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
+        "expose_headers": ["Content-Range", "X-Content-Range"],
+        "supports_credentials": True,
+        "max_age": 600
+    }
+})
+
 # Initialize Supabase client
 try:
     supabase_url = os.getenv('SUPABASE_URL')
@@ -69,16 +88,16 @@ except Exception as e:
 # Enable security headers with Talisman
 talisman = Talisman(
     app,
-    force_https=False,  # Set to True in production
+    force_https=True,  # Set to True for production
     session_cookie_secure=True,
     session_cookie_http_only=True,
     strict_transport_security=True,
     content_security_policy={
-        'default-src': "'self'",
-        'img-src': "'self' data: blob:",
-        'script-src': "'self'",
-        'style-src': "'self' 'unsafe-inline'",
-        'connect-src': "'self' https://*.supabase.co"
+        'default-src': "'self' https://*.vercel.app https://*.koyeb.app",
+        'img-src': "'self' data: blob: https://*.vercel.app https://*.koyeb.app",
+        'script-src': "'self' https://*.vercel.app",
+        'style-src': "'self' 'unsafe-inline' https://*.vercel.app",
+        'connect-src': "'self' https://*.supabase.co https://*.vercel.app https://*.koyeb.app"
     }
 )
 

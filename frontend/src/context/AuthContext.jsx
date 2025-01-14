@@ -60,7 +60,7 @@ export function AuthProvider({ children }) {
 
   const login = async (username, password) => {
     try {
-      const response = await api.post('/auth/login', { username, password });
+      const response = await api.post('/api/login', { username, password });
       const { token, user: userData } = response.data;
       
       // Store token in cookie
@@ -79,7 +79,7 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      await api.post('/auth/logout');
+      await api.post('/api/logout');
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
@@ -96,7 +96,7 @@ export function AuthProvider({ children }) {
         return;
       }
 
-      const response = await api.get('/auth/me');
+      const response = await api.get('/api/verify');
       setUser(response.data);
     } catch (error) {
       console.error('Check auth error:', error);
