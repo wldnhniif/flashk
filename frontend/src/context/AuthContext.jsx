@@ -20,6 +20,20 @@ export function AuthProvider({ children }) {
     timeout: 30000, // 30 second timeout
   });
 
+  // Add request interceptor to add token to all requests
+  api.interceptors.request.use(
+    (config) => {
+      const token = Cookies.get(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME);
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => {
+      return Promise.reject(error);
+    }
+  );
+
   // Add response interceptor to handle 401 responses
   api.interceptors.response.use(
     (response) => response,
@@ -45,6 +59,16 @@ export function AuthProvider({ children }) {
   // Check authentication status on mount and when user changes
   useEffect(() => {
     const checkAuth = async () => {
+      const token = Cookies.get(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME);
+      if (!token) {
+        setUser(null);
+        setLoading(false);
+        if (window.location.pathname !== '/') {
+          router.push('/');
+        }
+        return;
+      }
+
       try {
         const response = await api.get('/api/verify');
         setUser(response.data);
@@ -54,6 +78,12 @@ export function AuthProvider({ children }) {
         }
       } catch (error) {
         setUser(null);
+        Cookies.remove(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME, {
+          path: '/',
+          domain: window.location.hostname,
+          secure: true,
+          sameSite: 'None'
+        });
         // Only redirect to login if not already there
         if (window.location.pathname !== '/') {
           router.push('/');
@@ -69,18 +99,16 @@ export function AuthProvider({ children }) {
   const login = async (username, password) => {
     try {
       const response = await api.post('/api/login', { username, password });
+      
+      // Set the cookie with the token from the response
+      Cookies.set(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME, response.data.token, {
+        path: '/',
+        domain: window.location.hostname,
+        secure: true,
+        sameSite: 'None'
+      });
+      
       setUser(response.data.user);
-      
-      // Set the cookie if it's not automatically set by the server
-      if (!Cookies.get(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME)) {
-        Cookies.set(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME, response.data.token, {
-          path: '/',
-          domain: window.location.hostname,
-          secure: true,
-          sameSite: 'None'
-        });
-      }
-      
       toast.success('Berhasil masuk');
       router.push('/dashboard');
       return response.data;
