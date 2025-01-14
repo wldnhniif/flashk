@@ -164,7 +164,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-gray-600">
-          <p>© 2024 KasirKuy. Hak cipta dilindungi.</p>
+          <p>© 2024 KasirKuy. Dibuat oleh Wildan Hanif.</p>
         </div>
       </div>
     </div>
