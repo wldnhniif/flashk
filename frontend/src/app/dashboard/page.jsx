@@ -162,7 +162,7 @@ export default function Dashboard() {
       });
 
       // Create receipt window with proper error handling
-      const receiptWindow = window.open('', '_blank');
+      const receiptWindow = window.open('', '_blank', 'width=400,height=600');
       if (!receiptWindow) {
         toast.error('Pop-up diblokir. Mohon izinkan pop-up untuk mencetak struk.');
         return;
@@ -178,7 +178,7 @@ export default function Dashboard() {
         minute: '2-digit'
       });
 
-      // Write receipt HTML with improved styling and save/print buttons
+      // Write receipt HTML with improved styling
       receiptWindow.document.write(`
         <!DOCTYPE html>
         <html>
@@ -186,20 +186,30 @@ export default function Dashboard() {
           <title>Struk Pembayaran - KasirKuy</title>
           <meta charset="UTF-8">
           <style>
-            @page {
-              margin: 0;
-              size: 80mm auto;
+            @media print {
+              body {
+                width: 80mm;
+                margin: 0;
+                padding: 5mm;
+                font-family: 'Courier New', monospace;
+                font-size: 12px;
+                line-height: 1.5;
+              }
+              .no-print {
+                display: none !important;
+              }
             }
             body {
               font-family: 'Courier New', monospace;
-              margin: 0;
-              padding: 10mm;
+              padding: 20px;
+              max-width: 80mm;
+              margin: 0 auto;
               font-size: 12px;
               line-height: 1.5;
             }
             .header {
               text-align: center;
-              margin-bottom: 10px;
+              margin-bottom: 20px;
             }
             .header h1 {
               font-size: 18px;
@@ -207,7 +217,6 @@ export default function Dashboard() {
             }
             .header p {
               margin: 5px 0;
-              font-size: 12px;
             }
             .divider {
               border-top: 1px dashed #000;
@@ -235,45 +244,32 @@ export default function Dashboard() {
               margin-top: 20px;
               font-size: 10px;
             }
-            .actions {
+            .print-button {
               position: fixed;
-              top: 10px;
-              right: 10px;
-              display: flex;
-              gap: 10px;
-            }
-            .actions button {
-              padding: 8px 16px;
+              top: 20px;
+              right: 20px;
+              padding: 10px 20px;
+              background: #1a1a1a;
+              color: white;
               border: none;
-              border-radius: 4px;
+              border-radius: 5px;
               cursor: pointer;
               font-size: 14px;
             }
-            .print-btn {
-              background: #1a1a1a;
-              color: white;
-            }
-            .save-btn {
-              background: #4a5568;
-              color: white;
-            }
-            @media print {
-              .actions {
-                display: none;
-              }
+            @media screen {
               body {
-                width: 80mm;
-                margin: 0;
-                padding: 5mm;
+                background: #fff;
+                box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                margin: 20px auto;
+                padding: 20px;
               }
             }
           </style>
         </head>
         <body>
-          <div class="actions">
-            <button onclick="window.print()" class="print-btn">Cetak</button>
-            <button onclick="saveAsPDF()" class="save-btn">Simpan PDF</button>
-          </div>
+          <button onclick="window.print()" class="print-button no-print">
+            Cetak Struk
+          </button>
           <div class="header">
             <h1>KasirKuy</h1>
             <p>Struk Pembayaran</p>
@@ -311,16 +307,14 @@ export default function Dashboard() {
           </div>
 
           <script>
-            function saveAsPDF() {
-              const filename = 'struk-' + new Date().getTime() + '.pdf';
+            // Auto print when loaded
+            window.onload = function() {
               window.print();
-            }
-
-            // Auto print option
-            if (window.location.hash === '#autoprint') {
-              window.print();
-              setTimeout(() => window.close(), 500);
-            }
+            };
+            // Close window after printing
+            window.onafterprint = function() {
+              window.close();
+            };
           </script>
         </body>
         </html>
@@ -477,7 +471,7 @@ export default function Dashboard() {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
                   required
                   disabled={isSubmitting}
                 />
@@ -490,7 +484,7 @@ export default function Dashboard() {
                   type="number"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
                   required
                   min="0"
                   disabled={isSubmitting}
