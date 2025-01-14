@@ -88,6 +88,7 @@ MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_TIME = 15 * 60  # 15 minutes in seconds
 JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 3600))  # 1 hour default
 PASSWORD_HASH_METHOD = 'pbkdf2:sha256:600000'  # Strong password hashing
+AUTH_COOKIE_NAME = 'kasirkuy_auth_token'  # Specific cookie name for our application
 
 # Configure upload folder
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
@@ -101,34 +102,13 @@ if not os.path.exists(UPLOAD_FOLDER):
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 print(f"Upload folder configured at: {UPLOAD_FOLDER}")
 
-# More permissive CORS settings
-CORS(app, resources={
-    r"/api/*": {
-        "origins": [
-            "http://localhost:3000",
-            "https://flashk.vercel.app",
-            "https://flashk-wldnhniif.vercel.app",
-            "https://sticky-marie-ann-kasirkuy-f46a83f8.koyeb.app",
-            "https://qbfuqvlmhrtzejscaxtx.supabase.co"
-        ],
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin", "X-Client-Info", "apikey"],
-        "expose_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": True,
-        "max_age": 600
-    }
-})
-
-# Enhanced JWT Configuration
+# Configure JWT
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(seconds=JWT_ACCESS_TOKEN_EXPIRES)
-app.config['JWT_TOKEN_LOCATION'] = ['headers']
-app.config['JWT_HEADER_NAME'] = 'Authorization'
-app.config['JWT_HEADER_TYPE'] = 'Bearer'
-app.config['JWT_ERROR_MESSAGE_KEY'] = 'message'
-app.config['JWT_BLACKLIST_ENABLED'] = True
-app.config['JWT_BLACKLIST_TOKEN_CHECKS'] = ['access']
-app.config['PROPAGATE_EXCEPTIONS'] = True
+app.config['JWT_TOKEN_LOCATION'] = ['cookies']
+app.config['JWT_COOKIE_SECURE'] = True  # Only allow HTTPS
+app.config['JWT_COOKIE_CSRF_PROTECT'] = True
+app.config['JWT_COOKIE_SAMESITE'] = 'Lax'
 
 # Initialize JWT
 jwt = JWTManager(app)
@@ -437,14 +417,28 @@ def login():
                 identity=admin_user.data[0]['id'],
                 additional_claims={"is_admin": True}
             )
-            return jsonify({
-                "access_token": access_token,
+            
+            response = jsonify({
+                "message": "Login successful",
                 "user": {
                     "id": admin_user.data[0]['id'],
-                    "username": username,
+                    "username": admin_user.data[0]['username'],
                     "is_admin": True
                 }
-            }), 200
+            })
+            
+            # Set JWT as HTTP-only cookie
+            response.set_cookie(
+                AUTH_COOKIE_NAME,  # Use constant instead of hardcoded 'token'
+                access_token,
+                httponly=True,
+                secure=True,  # Only sent over HTTPS
+                samesite='Lax',
+                max_age=JWT_ACCESS_TOKEN_EXPIRES,
+                path='/'
+            )
+            
+            return response
         
         # Only proceed with Supabase query if supabase client is initialized
         if not supabase:
@@ -1222,6 +1216,13 @@ def cleanup_old_images():
                     print(f"Error deleting file {filename}: {str(e)}")
     except Exception as e:
         print(f"Error during image cleanup: {str(e)}")
+
+@app.route('/api/logout', methods=['POST'])
+@jwt_required()
+def logout():
+    response = jsonify({"message": "Successfully logged out"})
+    response.delete_cookie(AUTH_COOKIE_NAME, path='/')
+    return response
 
 if __name__ == '__main__':
     # Create default admin user if none exists

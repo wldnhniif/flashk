@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import Cookies from 'js-cookie';
 
 const AuthContext = createContext();
 
@@ -15,16 +16,15 @@ export function AuthProvider({ children }) {
     headers: {
       'Content-Type': 'application/json',
     },
-    withCredentials: false
+    withCredentials: true // Enable sending cookies with cross-origin requests
   });
 
-  // Add request interceptor to include token
+  // Add request interceptor to include token from cookie
   api.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
+    const token = Cookies.get(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log('Making request:', config.url);
     return config;
   }, (error) => {
     console.error('Request error:', error);
@@ -39,7 +39,7 @@ export function AuthProvider({ children }) {
     (error) => {
       // Handle 401 Unauthorized
       if (error.response?.status === 401) {
-        localStorage.removeItem('token');
+        Cookies.remove(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME);
         setUser(null);
       }
       
@@ -48,92 +48,79 @@ export function AuthProvider({ children }) {
       if (error.response?.status === 401) {
         errorMessage = 'Nama pengguna atau kata sandi salah';
       } else if (error.response?.status === 409) {
-        errorMessage = 'Nama pengguna sudah digunakan';
-      } else if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message && !error.message.includes('Network Error')) {
-        errorMessage = error.message;
+        errorMessage = error.response.data.message || 'Konflik data';
       } else {
-        errorMessage = 'Terjadi kesalahan. Silakan coba lagi.';
+        errorMessage = error.response?.data?.message || 'Terjadi kesalahan';
       }
-                          
-      return Promise.reject({
-        error: errorMessage,
-        status: error.response?.status
-      });
+      
+      toast.error(errorMessage);
+      return Promise.reject(error);
     }
   );
 
   const login = async (username, password) => {
     try {
-      const response = await api.post('/api/login', { username, password });
-      const { access_token, user } = response.data;
+      const response = await api.post('/auth/login', { username, password });
+      const { token, user: userData } = response.data;
       
-      localStorage.setItem('token', access_token);
-      setUser({
-        id: user.id,
-        username: user.username,
-        is_admin: user.is_admin
+      // Store token in cookie
+      Cookies.set(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME, token, {
+        expires: 7, // 7 days
+        secure: process.env.NODE_ENV === 'production', // Only send over HTTPS in production
+        sameSite: 'Lax'
       });
       
-      return true;
+      setUser(userData);
+      return userData;
     } catch (error) {
-      throw error?.error || 'Gagal masuk. Silakan coba lagi.';
+      throw error;
     }
   };
 
-  const register = async (username, password) => {
+  const logout = async () => {
     try {
-      const response = await api.post('/api/register', { username, password });
-      
-      const { access_token, user } = response.data;
-      localStorage.setItem('token', access_token);
-      setUser({
-        id: user.id,
-        username: user.username,
-        is_admin: user.is_admin
-      });
-      
-      return true;
+      await api.post('/auth/logout');
     } catch (error) {
-      throw error?.error || 'Pendaftaran gagal. Silakan coba lagi.';
+      console.error('Logout error:', error);
+    } finally {
+      Cookies.remove(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME);
+      setUser(null);
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setUser(null);
+  const checkAuth = async () => {
+    try {
+      const token = Cookies.get(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME);
+      if (!token) {
+        setUser(null);
+        return;
+      }
+
+      const response = await api.get('/auth/me');
+      setUser(response.data);
+    } catch (error) {
+      console.error('Check auth error:', error);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      // Verify token and get user data
-      api.get('/api/verify')
-        .then(response => {
-          setUser(response.data);
-        })
-        .catch(() => {
-          localStorage.removeItem('token');
-          setUser(null);
-        })
-        .finally(() => {
-          setLoading(false);
-        });
-    } else {
-      setLoading(false);
-    }
+    checkAuth();
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading, api }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, api }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export function useAuth() {
-  return useContext(AuthContext);
-} 
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}; 
