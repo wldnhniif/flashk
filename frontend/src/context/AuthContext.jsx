@@ -12,12 +12,13 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000',
+    baseURL: process.env.NEXT_PUBLIC_API_URL,
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     },
-    withCredentials: true
+    withCredentials: true,
+    timeout: 10000, // 10 second timeout
   });
 
   // Add request interceptor to include token from cookie
@@ -42,9 +43,11 @@ export function AuthProvider({ children }) {
       
       // Handle 401 Unauthorized
       if (error.response?.status === 401) {
-        Cookies.remove(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME || 'kasirkuy_auth_token', { 
+        Cookies.remove(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME || 'kasirkuy_auth_token', {
           path: '/',
-          domain: window.location.hostname
+          domain: window.location.hostname,
+          secure: true,
+          sameSite: 'None'
         });
         setUser(null);
       }
@@ -55,7 +58,7 @@ export function AuthProvider({ children }) {
         errorMessage = 'Nama pengguna atau kata sandi salah';
       } else if (error.response?.status === 409) {
         errorMessage = error.response.data.message || 'Konflik data';
-      } else if (error.response?.status === 0 || !error.response) {
+      } else if (error.response?.status === 0 || !error.response || error.code === 'ERR_NETWORK') {
         errorMessage = 'Tidak dapat terhubung ke server. Mohon coba lagi nanti.';
       } else {
         errorMessage = error.response?.data?.message || 'Terjadi kesalahan';
@@ -68,7 +71,15 @@ export function AuthProvider({ children }) {
 
   const login = async (username, password) => {
     try {
-      const response = await api.post('/api/login', { username, password });
+      const response = await api.post('/api/login', { 
+        username, 
+        password 
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
       const { token, user: userData } = response.data;
       
       if (!token || !userData) {
@@ -76,13 +87,19 @@ export function AuthProvider({ children }) {
       }
       
       // Store token in cookie
-      Cookies.set(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME || 'kasirkuy_auth_token', token, {
+      const cookieOptions = {
         expires: 7, // 7 days
         secure: true,
         sameSite: 'None',
         path: '/',
         domain: window.location.hostname
-      });
+      };
+      
+      Cookies.set(
+        process.env.NEXT_PUBLIC_JWT_COOKIE_NAME || 'kasirkuy_auth_token',
+        token,
+        cookieOptions
+      );
       
       setUser(userData);
       toast.success('Login berhasil');
@@ -99,16 +116,53 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      Cookies.remove(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME);
+      const cookieOptions = {
+        path: '/',
+        domain: window.location.hostname,
+        secure: true,
+        sameSite: 'None'
+      };
+      
+      Cookies.remove(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME || 'kasirkuy_auth_token', cookieOptions);
       setUser(null);
+    }
+  };
+
+  const register = async (username, password) => {
+    try {
+      const response = await api.post('/api/register', { 
+        username, 
+        password 
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (response.status === 201) {
+        toast.success('Registrasi berhasil, silakan login');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      if (error.response?.status === 409) {
+        toast.error('Nama pengguna sudah digunakan');
+      } else if (error.code === 'ERR_NETWORK') {
+        toast.error('Tidak dapat terhubung ke server. Mohon coba lagi nanti.');
+      } else {
+        toast.error('Gagal mendaftar. Silakan coba lagi.');
+      }
+      console.error('Register error:', error);
+      throw error;
     }
   };
 
   const checkAuth = async () => {
     try {
-      const token = Cookies.get(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME);
+      const token = Cookies.get(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME || 'kasirkuy_auth_token');
       if (!token) {
         setUser(null);
+        setLoading(false);
         return;
       }
 
@@ -119,26 +173,6 @@ export function AuthProvider({ children }) {
       setUser(null);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const register = async (username, password) => {
-    try {
-      const response = await api.post('/api/register', { username, password });
-      
-      if (response.status === 201) {
-        toast.success('Registrasi berhasil, silakan login');
-        return true;
-      }
-      return false;
-    } catch (error) {
-      if (error.response?.status === 409) {
-        toast.error('Nama pengguna sudah digunakan');
-      } else {
-        toast.error('Gagal mendaftar. Silakan coba lagi.');
-      }
-      console.error('Register error:', error);
-      throw error;
     }
   };
 

@@ -49,6 +49,7 @@ CORS(app, resources={
             "https://kasirkuy-one.vercel.app",
             "https://kasirkuy-git-main-wildan-hanifs-projects.vercel.app",
             "https://kasirkuy-3xu6aq1qr-wildan-hanifs-projects.vercel.app",
+            "https://kasirkuy-fkhdlawsv-wildan-hanifs-projects.vercel.app",
             "https://kasirkuy.vercel.app",
             "https://sticky-marie-ann-kasirkuy-f46a83f8.koyeb.app"
         ],
@@ -70,6 +71,7 @@ def add_cors_headers(response):
         "https://kasirkuy-one.vercel.app",
         "https://kasirkuy-git-main-wildan-hanifs-projects.vercel.app",
         "https://kasirkuy-3xu6aq1qr-wildan-hanifs-projects.vercel.app",
+        "https://kasirkuy-fkhdlawsv-wildan-hanifs-projects.vercel.app",
         "https://kasirkuy.vercel.app",
         "https://sticky-marie-ann-kasirkuy-f46a83f8.koyeb.app"
     ]:
@@ -78,6 +80,13 @@ def add_cors_headers(response):
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, Origin, X-Requested-With'
         response.headers['Access-Control-Expose-Headers'] = 'Content-Range, X-Content-Range'
+        
+        # Handle OPTIONS request
+        if request.method == 'OPTIONS':
+            response.headers['Access-Control-Max-Age'] = '3600'
+            response.status_code = 204
+            return response
+            
     return response
 
 # Initialize Supabase client
@@ -143,11 +152,12 @@ print(f"Upload folder configured at: {UPLOAD_FOLDER}")
 
 # Configure JWT
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(seconds=JWT_ACCESS_TOKEN_EXPIRES)
-app.config['JWT_TOKEN_LOCATION'] = ['cookies']
-app.config['JWT_COOKIE_SECURE'] = True  # Only allow HTTPS
-app.config['JWT_COOKIE_CSRF_PROTECT'] = True
-app.config['JWT_COOKIE_SAMESITE'] = 'Lax'
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=7)  # Increase token expiry to 7 days
+app.config['JWT_TOKEN_LOCATION'] = ['headers', 'cookies']
+app.config['JWT_COOKIE_SECURE'] = True
+app.config['JWT_COOKIE_SAMESITE'] = 'None'
+app.config['JWT_COOKIE_DOMAIN'] = None  # Let the browser set the domain
+app.config['JWT_COOKIE_CSRF_PROTECT'] = False  # Disable CSRF for simplicity
 
 # Initialize JWT
 jwt = JWTManager(app)
@@ -401,7 +411,7 @@ def login():
         # Set cookie and prepare response
         response = jsonify({
             'message': 'Login successful',
-            'token': access_token,  # Include token in response body
+            'token': access_token,
             'user': {
                 'id': user['id'],
                 'username': user['username'],
@@ -409,14 +419,14 @@ def login():
             }
         })
         
-        # Set cookie
+        # Set cookie with proper settings
         response.set_cookie(
-            AUTH_COOKIE_NAME,  # Use the constant instead of hardcoded value
+            AUTH_COOKIE_NAME,
             value=access_token,
-            max_age=JWT_ACCESS_TOKEN_EXPIRES.total_seconds(),
+            max_age=60 * 60 * 24 * 7,  # 7 days
             secure=True,
             httponly=True,
-            samesite='Lax',
+            samesite='None',
             path='/'
         )
         
