@@ -405,6 +405,8 @@ def login():
         username = data.get('username')
         password = data.get('password')
         
+        print(f"Login attempt for username: {username}")  # Debug log
+        
         # Validate input
         if not username or not password:
             return jsonify({'message': 'Username and password are required'}), 400
@@ -412,14 +414,19 @@ def login():
         # Get user
         result = get_user_by_username(username)
         if not result.data:
+            print("User not found")  # Debug log
             return jsonify({'message': 'Invalid username or password'}), 401
             
         user = result.data[0]
+        print(f"Found user: {user['username']}")  # Debug log
         
         # Verify password
         if not verify_password(password, user['password']):
+            print("Password verification failed")  # Debug log
             return jsonify({'message': 'Invalid username or password'}), 401
             
+        print("Password verified successfully")  # Debug log
+        
         # Create access token with additional claims
         access_token = create_access_token(
             identity=user['id'],
@@ -460,7 +467,12 @@ def login():
 def verify_password(password, stored_password_hash):
     """Verify a password against a stored hash"""
     try:
-        return check_password_hash(stored_password_hash, password)
+        # Check if the stored password is already hashed
+        if stored_password_hash.startswith('pbkdf2:'):
+            return check_password_hash(stored_password_hash, password)
+        else:
+            # If not hashed (like the default admin password), compare directly
+            return stored_password_hash == password
     except Exception as e:
         print(f"Password verification error: {str(e)}")
         return False
