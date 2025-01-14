@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import Cookies from 'js-cookie';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 
 const AuthContext = createContext();
 
@@ -56,7 +56,7 @@ export function AuthProvider({ children }) {
     };
 
     checkAuth();
-  }, []);
+  }, [router]);
 
   const login = async (username, password) => {
     try {
@@ -90,6 +90,7 @@ export function AuthProvider({ children }) {
         sameSite: 'None'
       });
       toast.success('Berhasil keluar');
+      router.push('/');
     } catch (error) {
       console.error('Logout error:', error);
       throw error;

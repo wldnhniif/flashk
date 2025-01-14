@@ -1,15 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
-import { FaCashRegister, FaSpinner, FaUser, FaLock, FaSignInAlt, FaUserPlus } from 'react-icons/fa';
+import { FaSpinner } from 'react-icons/fa';
+import { FaCashRegister } from 'react-icons/fa';
 
 export default function LoginPage() {
-  const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const { login, register } = useAuth();
   const router = useRouter();
@@ -42,16 +43,8 @@ export default function LoginPage() {
         errorMessage = 'Tidak dapat terhubung ke server. Mohon coba lagi nanti.';
       } else if (error?.response?.status === 500) {
         errorMessage = 'Terjadi kesalahan pada server. Mohon coba lagi nanti.';
-      } else if (typeof error === 'string') {
-        errorMessage = error;
-      } else if (error?.error) {
-        errorMessage = error.error;
-      } else if (error?.message) {
-        errorMessage = error.message;
-      } else if (error?.response?.data?.error) {
-        errorMessage = error.response.data.error;
       } else {
-        errorMessage = 'Terjadi kesalahan. Silakan coba lagi.';
+        errorMessage = error?.response?.data?.error || 'Terjadi kesalahan. Silakan coba lagi.';
       }
       
       toast.error(errorMessage);
