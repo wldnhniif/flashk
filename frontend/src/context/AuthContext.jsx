@@ -12,7 +12,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000',
+    baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
     headers: {
       'Content-Type': 'application/json',
     },
@@ -60,7 +60,7 @@ export function AuthProvider({ children }) {
 
   const login = async (username, password) => {
     try {
-      const response = await api.post('/api/login', { username, password });
+      const response = await api.post('/login', { username, password });
       const { token, user: userData } = response.data;
       
       // Store token in cookie

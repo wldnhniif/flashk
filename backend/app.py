@@ -408,99 +408,67 @@ def register():
         return jsonify({"error": "An error occurred during registration"}), 500
 
 @app.route('/api/login', methods=['POST'])
+@strict_rate_limit()
 def login():
     try:
         data = request.get_json()
         if not data:
-            print("No data provided in request")
-            return jsonify({"error": "No data provided"}), 400
-            
-        username = data.get('username', '').strip()
-        password = data.get('password', '')
-        
+            return jsonify({'message': 'No input data provided'}), 400
+
+        username = data.get('username')
+        password = data.get('password')
+
         if not username or not password:
-            print("Missing username or password")
-            return jsonify({"error": "Username and password are required"}), 400
+            return jsonify({'message': 'Missing username or password'}), 400
+
+        # Get user from database
+        result = get_user_by_username(username)
+        if not result.data:
+            return jsonify({'message': 'Invalid username or password'}), 401
+
+        user = result.data[0]
         
-        print(f"Login attempt for user: {username}")  # Debug log
-        
-        # Direct admin check first
-        if username == "wildanhniif" and password == "pemenang321":
-            print("Admin login successful")  # Debug log
-            # Get the admin user from database
-            admin_user = get_user_by_username(username)
-            if not admin_user.data:
-                return jsonify({"error": "Admin user not found"}), 500
-                
-            access_token = create_access_token(
-                identity=admin_user.data[0]['id'],
-                additional_claims={"is_admin": True}
-            )
-            
-            response = jsonify({
-                "message": "Login successful",
-                "user": {
-                    "id": admin_user.data[0]['id'],
-                    "username": admin_user.data[0]['username'],
-                    "is_admin": True
-                }
-            })
-            
-            # Set JWT as HTTP-only cookie
-            response.set_cookie(
-                AUTH_COOKIE_NAME,  # Use constant instead of hardcoded 'token'
-                access_token,
-                httponly=True,
-                secure=True,  # Only sent over HTTPS
-                samesite='Lax',
-                max_age=JWT_ACCESS_TOKEN_EXPIRES,
-                path='/'
-            )
-            
-            return response
-        
-        # Only proceed with Supabase query if supabase client is initialized
-        if not supabase:
-            print("Supabase client not initialized")
-            return jsonify({"error": "Database connection error"}), 500
-            
-        try:
-            print("Querying Supabase for user")  # Debug log
-            response = supabase.from_('users').select("*").eq('username', username).execute()
-            print(f"Supabase response: {response}")  # Debug log
-            
-            if not response.data:
-                print("User not found")  # Debug log
-                return jsonify({"error": "Invalid username or password"}), 401
-            
-            user = response.data[0]
-            
-            # Verify password hash
-            if check_password_hash(user.get('password', ''), password):
-                print("User login successful")  # Debug log
-                access_token = create_access_token(
-                    identity=user['id'],
-                    additional_claims={"is_admin": user.get('is_admin', False)}
-                )
-                return jsonify({
-                    "access_token": access_token,
-                    "user": {
-                        "id": user['id'],
-                        "username": user['username'],
-                        "is_admin": user.get('is_admin', False)
-                    }
-                }), 200
-            
-            print("Invalid password")  # Debug log
-            return jsonify({"error": "Invalid username or password"}), 401
-            
-        except Exception as e:
-            print(f"Database error: {str(e)}")  # Debug log
-            return jsonify({"error": "Database error occurred"}), 500
-            
+        # Verify password
+        if not check_password_hash(user['password'], password):
+            record_failed_login(request.remote_addr)
+            return jsonify({'message': 'Invalid username or password'}), 401
+
+        # Create access token
+        access_token = create_access_token(
+            identity=user['id'],
+            additional_claims={
+                'username': user['username'],
+                'is_admin': user['is_admin']
+            }
+        )
+
+        # Prepare response
+        response = jsonify({
+            'message': 'Login successful',
+            'token': access_token,
+            'user': {
+                'id': user['id'],
+                'username': user['username'],
+                'is_admin': user['is_admin']
+            }
+        })
+
+        # Set cookie
+        response.set_cookie(
+            AUTH_COOKIE_NAME,
+            value=access_token,
+            max_age=JWT_ACCESS_TOKEN_EXPIRES,
+            secure=True,
+            httponly=True,
+            samesite='Lax',
+            path='/'
+        )
+
+        return response
+
     except Exception as e:
-        print(f"Login error: {str(e)}")  # Debug log
-        return jsonify({"error": "An error occurred during login"}), 500
+        print(f"Login error: {str(e)}")
+        return jsonify({'message': 'An error occurred during login'}), 500
 
 def verify_password(password, stored_password_hash):
     """Verify a password against a stored hash"""
@@ -1241,6 +1209,23 @@ def cleanup_old_images():
 def logout():
     response = jsonify({"message": "Successfully logged out"})
     response.delete_cookie(AUTH_COOKIE_NAME, path='/')
+    return response
+
+# Add OPTIONS route handlers for auth endpoints
+@app.route('/api/login', methods=['OPTIONS'])
+def login_options():
+    return '', 204
+
+@app.route('/api/register', methods=['OPTIONS'])
+def register_options():
+    return '', 204
+
+@app.after_request
+def after_request(response):
+    if request.method == 'OPTIONS':
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, Origin, X-Requested-With'
+        response.headers['Access-Control-Max-Age'] = '600'
     return response
 
 if __name__ == '__main__':
