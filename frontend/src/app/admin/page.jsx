@@ -102,19 +102,19 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation Bar */}
-      <nav className="bg-white shadow-sm">
+      <nav className="bg-white shadow-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-3">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
             <div className="flex items-center space-x-3">
               <div className="bg-gradient-to-r from-gray-700 to-gray-800 p-2 rounded-lg">
                 <FaCashRegister className="w-6 h-6 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-800">KasirKuy Admin</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-800">KasirKuy Admin</h1>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4">
               <button
                 onClick={() => router.push('/dashboard')}
-                className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
+                className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 w-full sm:w-auto justify-center"
               >
                 <FaArrowLeft className="w-4 h-4 mr-2" />
                 Kembali ke Dashboard
@@ -124,7 +124,7 @@ export default function AdminDashboard() {
                   logout();
                   router.push('/');
                 }}
-                className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
+                className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 w-full sm:w-auto justify-center"
               >
                 <FaSignOutAlt className="w-4 h-4 mr-2" />
                 Keluar
@@ -136,7 +136,7 @@ export default function AdminDashboard() {
 
       <div className="container mx-auto px-4 py-8">
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -166,23 +166,67 @@ export default function AdminDashboard() {
           <div className="p-6">
             <h2 className="text-xl font-semibold text-gray-800 mb-6">Manajemen Pengguna</h2>
             
-            {/* Add User Form */}
-            {!editingUser && (
-              <form onSubmit={handleAddUser} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {/* Add/Edit User Form */}
+            {editingUser ? (
+              <form onSubmit={handleUpdateUser} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                <input
+                  type="text"
+                  placeholder="Nama Pengguna"
+                  value={editingUser.username}
+                  onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })}
+                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400"
+                  required
+                />
+                <input
+                  type="password"
+                  placeholder="Kata Sandi Baru (opsional)"
+                  value={editingUser.password || ''}
+                  onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
+                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400"
+                />
+                <div className="flex items-center space-x-4">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={editingUser.is_admin}
+                      onChange={(e) => setEditingUser({ ...editingUser, is_admin: e.target.checked })}
+                      className="rounded text-gray-800 focus:ring-gray-400"
+                    />
+                    <span className="text-gray-700">Admin</span>
+                  </label>
+                  <div className="flex-1 flex space-x-2">
+                    <button
+                      type="submit"
+                      className="flex-1 flex items-center justify-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900"
+                    >
+                      Perbarui
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingUser(null)}
+                      className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleAddUser} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                 <input
                   type="text"
                   placeholder="Nama Pengguna"
                   value={newUser.username}
                   onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
+                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400"
                   required
                 />
                 <input
                   type="password"
-                  placeholder="Password"
+                  placeholder="Kata Sandi"
                   value={newUser.password}
                   onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
+                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400"
                   required
                 />
                 <div className="flex items-center space-x-4">
@@ -200,52 +244,7 @@ export default function AdminDashboard() {
                     className="flex-1 flex items-center justify-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900"
                   >
                     <FaPlus className="w-4 h-4 mr-2" />
-                    Tambah Pengguna
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Edit User Form */}
-            {editingUser && (
-              <form onSubmit={handleUpdateUser} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <input
-                  type="text"
-                  placeholder="Nama Pengguna"
-                  value={editingUser.username}
-                  onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })}
-                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
-                  required
-                />
-                <input
-                  type="password"
-                  placeholder="Kata Sandi Baru (opsional)"
-                  value={editingUser.password || ''}
-                  onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
-                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
-                />
-                <div className="flex items-center space-x-4">
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={editingUser.is_admin}
-                      onChange={(e) => setEditingUser({ ...editingUser, is_admin: e.target.checked })}
-                      className="rounded text-gray-800 focus:ring-gray-400"
-                    />
-                    <span className="text-gray-700">Admin</span>
-                  </label>
-                  <button
-                    type="submit"
-                    className="flex-1 flex items-center justify-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900"
-                  >
-                    Perbarui Pengguna
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditingUser(null)}
-                    className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                  >
-                    <FaTimes className="w-4 h-4" />
+                    Tambah
                   </button>
                 </div>
               </form>
@@ -256,37 +255,28 @@ export default function AdminDashboard() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50">
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Pengguna</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Peran</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produk</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dibuat Pada</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">Nama Pengguna</th>
+                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">Role</th>
+                    <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {users.map((u) => (
-                    <tr key={u.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{u.username}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${u.is_admin ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                          {u.is_admin ? 'Admin' : 'User'}
-                        </span>
+                <tbody className="divide-y divide-gray-200">
+                  {users.map((user) => (
+                    <tr key={user.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-900">{user.username}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {user.is_admin ? 'Admin' : 'User'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{u.products_count}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(u.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <td className="px-4 py-3 text-right space-x-2">
                         <button
-                          onClick={() => setEditingUser(u)}
-                          className="text-gray-600 hover:text-gray-900 mr-3"
+                          onClick={() => setEditingUser(user)}
+                          className="text-gray-600 hover:text-gray-800"
                         >
                           <FaEdit className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleDeleteUser(u.id)}
-                          className="text-red-600 hover:text-red-900"
-                          disabled={u.is_admin && users.filter(user => user.is_admin).length === 1}
+                          onClick={() => handleDeleteUser(user.id)}
+                          className="text-red-600 hover:text-red-800"
                         >
                           <FaTrash className="w-4 h-4" />
                         </button>
@@ -299,49 +289,30 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Products Section */}
+        {/* Products Table */}
         <div className="bg-white rounded-lg shadow-sm">
           <div className="p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-6">Ringkasan Produk</h2>
+            <h2 className="text-xl font-semibold text-gray-800 mb-6">Daftar Produk</h2>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50">
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produk</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Harga</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pemilik</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">Nama Produk</th>
+                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">Harga</th>
+                    <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {products.map((p) => (
-                    <tr key={p.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          {p.image_url ? (
-                            <img
-                              src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${p.image_url}`}
-                              alt={p.name}
-                              className="h-10 w-10 rounded-full object-cover"
-                            />
-                          ) : (
-                            <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
-                              <FaBox className="h-5 w-5 text-gray-400" />
-                            </div>
-                          )}
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">{p.name}</div>
-                          </div>
-                        </div>
+                <tbody className="divide-y divide-gray-200">
+                  {products.map((product) => (
+                    <tr key={product.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-900">{product.name}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {formatToRupiah(product.price)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatToRupiah(p.price)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.user_name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <td className="px-4 py-3 text-right">
                         <button
-                          onClick={() => handleDeleteProduct(p.id)}
-                          className="text-red-600 hover:text-red-900"
+                          onClick={() => handleDeleteProduct(product.id)}
+                          className="text-red-600 hover:text-red-800"
                         >
                           <FaTrash className="w-4 h-4" />
                         </button>

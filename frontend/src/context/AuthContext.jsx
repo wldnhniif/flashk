@@ -42,8 +42,8 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await api.get('/api/me');
-        setUser(response.data.user);
+        const response = await api.get('/api/verify');
+        setUser(response.data);
       } catch (error) {
         setUser(null);
         // Only redirect if not already on login page

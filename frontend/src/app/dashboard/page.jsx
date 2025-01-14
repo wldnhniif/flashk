@@ -433,27 +433,22 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation Bar */}
-      <nav className="bg-white shadow-sm">
+      <nav className="bg-white shadow-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-3">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
             <div className="flex items-center space-x-3">
               <div className="bg-gradient-to-r from-gray-700 to-gray-800 p-2 rounded-lg">
                 <FaCashRegister className="w-6 h-6 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-800">KasirKuy</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-800">KasirKuy</h1>
             </div>
             <div className="flex items-center space-x-4">
-              {user?.is_admin && (
-                <button
-                  onClick={() => router.push('/admin')}
-                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
-                >
-                  Panel Admin
-                </button>
-              )}
+              <span className="text-sm text-gray-600">
+                Halo, {user?.username}
+              </span>
               <button
                 onClick={handleLogout}
-                className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
+                className="flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
               >
                 <FaSignOutAlt className="w-4 h-4 mr-2" />
                 Keluar
@@ -465,113 +460,104 @@ export default function Dashboard() {
 
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Product Management Section */}
+          {/* Products Section */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold text-gray-800">Produk</h2>
-                <button
-                  onClick={() => setShowModal(true)}
-                  className="flex items-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900"
-                >
-                  <FaPlus className="w-4 h-4 mr-2" />
-                  Tambah Produk
-                </button>
-              </div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
+              <h2 className="text-xl font-semibold text-gray-800">Produk</h2>
+              <button
+                onClick={() => {
+                  setEditingProduct(null);
+                  setShowModal(true);
+                }}
+                className="flex items-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 w-full sm:w-auto justify-center"
+              >
+                <FaPlus className="w-4 h-4 mr-2" />
+                Tambah Produk
+              </button>
             </div>
 
-            {/* Products Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {products.map((product) => (
-                <ProductCard 
-                  key={product.id} 
-                  product={product} 
+                <ProductCard
+                  key={product.id}
+                  product={product}
                   onEdit={(product) => {
                     setEditingProduct(product);
                     setShowModal(true);
-                  }} 
-                  onDelete={handleDeleteProduct} 
+                  }}
+                  onDelete={handleDeleteProduct}
                 />
               ))}
             </div>
           </div>
 
-          {/* Shopping Cart Section */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm p-6 sticky top-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-800">Keranjang Belanja</h2>
-                <FaShoppingCart className="w-6 h-6 text-gray-600" />
-              </div>
-              
-              {cart.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">Keranjang belanja kosong</p>
-              ) : (
-                <div className="space-y-4">
-                  {cart.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between py-2 border-b">
-                      <div>
-                        <h3 className="font-medium text-gray-800">{item.name}</h3>
-                        <p className="text-sm text-gray-600">{formatToRupiah(item.price)}</p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                          className="px-2 py-1 text-gray-600 hover:text-gray-800"
-                        >
-                          -
-                        </button>
-                        <span className="w-8 text-center text-gray-700">{item.quantity}</span>
-                        <button
-                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                          className="px-2 py-1 text-gray-600 hover:text-gray-800"
-                        >
-                          +
-                        </button>
-                        <button
-                          onClick={() => removeFromCart(item.id)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  
-                  <div className="pt-4 border-t">
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="font-semibold text-gray-800">Total:</span>
-                      <span className="text-xl font-bold text-gray-800">
-                        {formatToRupiah(calculateTotal())}
-                      </span>
-                    </div>
-                    
+          {/* Cart Section */}
+          <div className="bg-white rounded-lg shadow-sm p-6 h-fit lg:sticky lg:top-24">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-gray-800">Keranjang</h2>
+              <button
+                onClick={handlePrint}
+                disabled={cart.length === 0}
+                className="flex items-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FaPrint className="w-4 h-4 mr-2" />
+                Cetak Struk
+              </button>
+            </div>
+
+            <div className="space-y-4 max-h-[calc(100vh-24rem)] overflow-y-auto">
+              {cart.map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <h3 className="font-medium text-gray-800">{item.name}</h3>
+                    <p className="text-sm text-gray-600">{formatToRupiah(item.price)} × {item.quantity}</p>
+                  </div>
+                  <div className="flex items-center space-x-2">
                     <button
-                      onClick={printReceipt}
-                      className="w-full flex items-center justify-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900"
+                      onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)}
+                      className="p-1 text-gray-600 hover:text-gray-800"
                     >
-                      <FaPrint className="w-4 h-4 mr-2" />
-                      Cetak Struk
+                      -
+                    </button>
+                    <span className="w-8 text-center">{item.quantity}</span>
+                    <button
+                      onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)}
+                      className="p-1 text-gray-600 hover:text-gray-800"
+                    >
+                      +
                     </button>
                   </div>
                 </div>
-              )}
+              ))}
             </div>
+
+            {cart.length > 0 ? (
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <div className="flex justify-between items-center text-lg font-semibold text-gray-800">
+                  <span>Total</span>
+                  <span>{formatToRupiah(calculateTotal())}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                Keranjang kosong
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Product Modal */}
-        <ProductModal
-          isOpen={showModal}
-          onClose={() => {
-            setShowModal(false);
-            setEditingProduct(null);
-          }}
-          onSubmit={editingProduct ? handleEditProduct : handleAddProduct}
-          editingProduct={editingProduct}
-          isSubmitting={isSubmitting}
-        />
       </div>
+
+      {/* Product Modal */}
+      <ProductModal
+        isOpen={showModal}
+        onClose={() => {
+          setShowModal(false);
+          setEditingProduct(null);
+        }}
+        onSubmit={handleSubmitProduct}
+        editingProduct={editingProduct}
+        isSubmitting={isSubmitting}
+      />
     </div>
   );
 } 
