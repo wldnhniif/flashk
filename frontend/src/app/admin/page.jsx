@@ -36,24 +36,21 @@ export default function AdminDashboard() {
     try {
       // Add loading state if needed
       const [usersRes, productsRes] = await Promise.all([
-        api.get('/api/users'),  // Fixed endpoint
-        api.get('/api/products')  // Fixed endpoint
+        api.get('/api/admin/users'),  // Changed endpoint
+        api.get('/api/admin/products')  // Changed endpoint
       ]);
 
       console.log('Users response:', usersRes.data);  // Debug log
       console.log('Products response:', productsRes.data);  // Debug log
 
-      // Check if the response data exists and has the expected structure
-      const users = usersRes.data?.users || usersRes.data || [];
-      const products = productsRes.data?.products || productsRes.data || [];
-
-      setUsers(Array.isArray(users) ? users : []);
-      setProducts(Array.isArray(products) ? products : []);
+      // Set the data directly since the admin endpoints return arrays
+      setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
+      setProducts(Array.isArray(productsRes.data) ? productsRes.data : []);
     } catch (error) {
       console.error('Error fetching data:', error.response || error);
       toast.error(error.response?.data?.message || 'Gagal mengambil data');
       // If unauthorized, redirect to dashboard
-      if (error.response?.status === 401) {
+      if (error.response?.status === 401 || error.response?.status === 403) {
         router.push('/dashboard');
       }
     }
@@ -390,7 +387,7 @@ export default function AdminDashboard() {
                         {formatToRupiah(product.price)}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">
-                        {product.created_by}
+                        {product.user_name}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {new Date(product.created_at).toLocaleDateString('id-ID', {
