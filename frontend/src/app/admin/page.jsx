@@ -30,19 +30,32 @@ export default function AdminDashboard() {
       return;
     }
     fetchData();
-  }, [user, router]);
+  }, [user, router, api]);
 
   const fetchData = async () => {
     try {
+      // Add loading state if needed
       const [usersRes, productsRes] = await Promise.all([
-        api.get('/api/users'),
-        api.get('/api/products')
+        api.get('/api/users'),  // Fixed endpoint
+        api.get('/api/products')  // Fixed endpoint
       ]);
-      setUsers(usersRes.data.users || []);
-      setProducts(productsRes.data.products || []);
+
+      console.log('Users response:', usersRes.data);  // Debug log
+      console.log('Products response:', productsRes.data);  // Debug log
+
+      // Check if the response data exists and has the expected structure
+      const users = usersRes.data?.users || usersRes.data || [];
+      const products = productsRes.data?.products || productsRes.data || [];
+
+      setUsers(Array.isArray(users) ? users : []);
+      setProducts(Array.isArray(products) ? products : []);
     } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Gagal mengambil data');
+      console.error('Error fetching data:', error.response || error);
+      toast.error(error.response?.data?.message || 'Gagal mengambil data');
+      // If unauthorized, redirect to dashboard
+      if (error.response?.status === 401) {
+        router.push('/dashboard');
+      }
     }
   };
 

@@ -153,172 +153,25 @@ export default function Dashboard() {
     }
 
     try {
-      // Create transaction first
-      const response = await api.post('/api/transactions', {
+      // Calculate total
+      const total = calculateTotal();
+
+      // Generate receipt PDF using backend API
+      const response = await api.post('/api/generate-receipt', {
         items: cart.map(item => ({
-          product_id: item.id,
+          name: item.name,
           quantity: item.quantity,
           price: item.price
-        }))
+        })),
+        total: total
       });
 
-      // Format the transaction data
-      const transaction = response.data.transaction;
-      const currentDate = new Date().toLocaleDateString('id-ID', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-
-      // Create receipt window
-      const receiptWindow = window.open('', '_blank', 'width=400,height=600');
-      if (!receiptWindow) {
-        toast.error('Pop-up diblokir. Mohon izinkan pop-up untuk mencetak struk.');
-        return;
+      if (!response.data || !response.data.pdf_url) {
+        throw new Error('Invalid response from server');
       }
 
-      // Write receipt content
-      receiptWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Struk Pembayaran - KasirKuy</title>
-          <meta charset="UTF-8">
-          <style>
-            @page {
-              size: 80mm auto;
-              margin: 0;
-            }
-            body {
-              font-family: 'Courier New', monospace;
-              margin: 0;
-              padding: 10mm;
-              font-size: 12px;
-              line-height: 1.5;
-            }
-            .header {
-              text-align: center;
-              margin-bottom: 10px;
-            }
-            .header h1 {
-              font-size: 18px;
-              margin: 0;
-            }
-            .header p {
-              margin: 5px 0;
-            }
-            .divider {
-              border-top: 1px dashed #000;
-              margin: 10px 0;
-            }
-            .item {
-              display: flex;
-              justify-content: space-between;
-              margin: 5px 0;
-            }
-            .item-details {
-              flex: 1;
-            }
-            .item-total {
-              text-align: right;
-              margin-left: 10px;
-            }
-            .total {
-              font-weight: bold;
-              margin-top: 10px;
-              text-align: right;
-            }
-            .footer {
-              text-align: center;
-              margin-top: 20px;
-              font-size: 10px;
-            }
-            @media screen {
-              body {
-                width: 80mm;
-                margin: 0 auto;
-                box-shadow: 0 0 10px rgba(0,0,0,0.1);
-              }
-              .print-button {
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                padding: 10px 20px;
-                background: #1a1a1a;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                cursor: pointer;
-              }
-            }
-            @media print {
-              .print-button {
-                display: none;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          <button onclick="window.print()" class="print-button">
-            Cetak Struk
-          </button>
-
-          <div class="header">
-            <h1>KasirKuy</h1>
-            <p>Struk Pembayaran</p>
-            <p>${currentDate}</p>
-            <p>No. Transaksi: ${transaction.id}</p>
-            <p>Kasir: ${user?.username || 'Admin'}</p>
-          </div>
-          
-          <div class="divider"></div>
-          
-          ${cart.map(item => `
-            <div class="item">
-              <div class="item-details">
-                ${item.name}<br/>
-                ${item.quantity} x ${formatToRupiah(item.price)}
-              </div>
-              <div class="item-total">
-                ${formatToRupiah(item.price * item.quantity)}
-              </div>
-            </div>
-          `).join('')}
-          
-          <div class="divider"></div>
-          
-          <div class="total">
-            <div class="item">
-              <div class="item-details">Total</div>
-              <div class="item-total">${formatToRupiah(calculateTotal())}</div>
-            </div>
-          </div>
-          
-          <div class="footer">
-            <p>Terima kasih telah berbelanja!</p>
-            <p>Powered by KasirKuy</p>
-          </div>
-
-          <script>
-            // Print automatically when loaded
-            window.onload = function() {
-              window.print();
-            };
-
-            // Close window after printing
-            window.onafterprint = function() {
-              window.close();
-            };
-          </script>
-        </body>
-        </html>
-      `);
-
-      // Close the document
-      receiptWindow.document.close();
+      // Open PDF in new window
+      window.open(response.data.pdf_url, '_blank');
       
       // Clear cart and show success message
       setCart([]);
@@ -327,7 +180,7 @@ export default function Dashboard() {
       // Refresh products to update stock
       fetchProducts();
     } catch (error) {
-      console.error('Error processing transaction:', error);
+      console.error('Error processing transaction:', error.response || error);
       toast.error(error.response?.data?.message || 'Gagal memproses transaksi. Silakan coba lagi.');
     }
   };
