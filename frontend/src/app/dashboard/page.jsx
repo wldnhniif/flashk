@@ -91,7 +91,18 @@ export default function Dashboard() {
     
     setIsSubmitting(true);
     try {
-      const response = await api.put(`/api/products/${editingProduct.id}`, formData, {
+      // Ensure we have the product ID
+      const productId = editingProduct.id;
+      
+      // Create FormData with all fields
+      const data = new FormData();
+      data.append('name', formData.get('name'));
+      data.append('price', formData.get('price'));
+      if (formData.get('image')) {
+        data.append('image', formData.get('image'));
+      }
+
+      const response = await api.put(`/api/products/${productId}`, data, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -101,7 +112,8 @@ export default function Dashboard() {
         throw new Error('Invalid response from server');
       }
 
-      setProducts(products.map(p => p.id === editingProduct.id ? response.data.product : p));
+      // Update the products list with the updated product
+      setProducts(products.map(p => p.id === productId ? response.data.product : p));
       toast.success('Produk berhasil diperbarui');
       setShowModal(false);
       setEditingProduct(null);
@@ -127,10 +139,15 @@ export default function Dashboard() {
   };
 
   const handleSubmitProduct = async (formData) => {
-    if (editingProduct) {
-      await handleEditProduct(formData);
-    } else {
-      await handleAddProduct(formData);
+    try {
+      if (editingProduct) {
+        await handleEditProduct(formData);
+      } else {
+        await handleAddProduct(formData);
+      }
+    } catch (error) {
+      console.error('Error submitting product:', error);
+      toast.error('Gagal menyimpan produk');
     }
   };
 

@@ -84,14 +84,13 @@ export default function AdminDashboard() {
     try {
       const response = await api.put(`/api/admin/users/${userId}`, {
         username: updatedData.username,
-        is_admin: updatedData.is_admin,
-        id: userId // Add user ID to ensure correct user is updated
+        is_admin: updatedData.is_admin
       });
 
       if (response.data) {
         toast.success('Pengguna berhasil diperbarui');
-        fetchData(); // Refresh data
-        setEditingUser(null);
+        await fetchData(); // Refresh data
+        _setEditingUser(null); // Use the correct setter
       } else {
         throw new Error('Failed to update user');
       }
