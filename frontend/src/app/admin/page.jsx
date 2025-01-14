@@ -174,7 +174,7 @@ export default function AdminDashboard() {
                   placeholder="Nama Pengguna"
                   value={newUser.username}
                   onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400"
+                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
                   required
                 />
                 <input
@@ -182,7 +182,7 @@ export default function AdminDashboard() {
                   placeholder="Password"
                   value={newUser.password}
                   onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400"
+                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
                   required
                 />
                 <div className="flex items-center space-x-4">
@@ -214,7 +214,7 @@ export default function AdminDashboard() {
                   placeholder="Nama Pengguna"
                   value={editingUser.username}
                   onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })}
-                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400"
+                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
                   required
                 />
                 <input
@@ -222,7 +222,7 @@ export default function AdminDashboard() {
                   placeholder="Kata Sandi Baru (opsional)"
                   value={editingUser.password || ''}
                   onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
-                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400"
+                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
                 />
                 <div className="flex items-center space-x-4">
                   <label className="flex items-center space-x-2">

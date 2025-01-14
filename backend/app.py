@@ -801,9 +801,8 @@ def generate_receipt():
         
         # Add date and time
         current_time = datetime.now()
-        date_str = current_time.strftime('%d/%m/%Y')
-        time_str = current_time.strftime('%H:%M')
-        story.append(Paragraph(f"{date_str} {time_str}", subheader_style))
+        date_str = current_time.strftime('%d/%m/%Y %H:%M')
+        story.append(Paragraph(date_str, subheader_style))
 
         # Add separator
         story.append(HRFlowable(
@@ -821,27 +820,13 @@ def generate_receipt():
         # Table style - Clean and minimal
         table_style = TableStyle([
             # Headers
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 7),
-            ('TEXTCOLOR', (0, 0), (-1, 0), primary_color),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
-            ('TOPPADDING', (0, 0), (-1, 0), 4),
-            
-            # Content
-            ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -2), 7),
-            ('TEXTCOLOR', (0, 1), (-1, -2), primary_color),
-            ('BOTTOMPADDING', (0, 1), (-1, -2), 2),
-            ('TOPPADDING', (0, 1), (-1, -2), 2),
-            
-            # Total row
-            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, -1), (-1, -1), 8),
-            ('TEXTCOLOR', (0, -1), (-1, -1), primary_color),
-            ('LINEABOVE', (0, -1), (-1, -1), 0.5, border_color),
-            ('TOPPADDING', (0, -1), (-1, -1), 4),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 7),
+            ('TEXTCOLOR', (0, 0), (-1, -1), primary_color),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),  # Left align first column
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),  # Right align other columns
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
         ])
 
         # Prepare table data
@@ -853,20 +838,37 @@ def generate_receipt():
             if len(name) > 20:  # Limit name length
                 name = name[:18] + '..'
             
-            # Format: Item name, Qty x Price, Total
+            # Format: Item name with quantity and price
             qty_price = f"{item['quantity']} x {format_currency(item['price'])}"
-            total_price = format_currency(item['price'] * item['quantity'])
-            
-            table_data.append([name, qty_price, total_price])
-
-        # Add total
-        table_data.append(['Total', '', format_currency(total)])
+            table_data.append([name, qty_price])
 
         # Create and style the table
-        col_widths = [1.4*inch, 0.7*inch, 0.5*inch]  # Adjusted column widths
+        col_widths = [1.6*inch, 1.0*inch]  # Adjusted column widths
         table = Table(table_data, colWidths=col_widths)
         table.setStyle(table_style)
         story.append(table)
+
+        # Add separator before total
+        story.append(HRFlowable(
+            width="100%",
+            thickness=0.5,
+            color=border_color,
+            spaceBefore=6,
+            spaceAfter=6
+        ))
+
+        # Add total with bold style
+        total_style = TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('TEXTCOLOR', (0, 0), (-1, -1), primary_color),
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ])
+
+        total_table = Table([['Total', format_currency(total)]], colWidths=col_widths)
+        total_table.setStyle(total_style)
+        story.append(total_table)
 
         # Add separator before footer
         story.append(HRFlowable(
@@ -917,14 +919,24 @@ def get_all_users():
     try:
         # Get users with their product counts
         response = supabase.from_('users').select('*, products(count)').execute()
-        return jsonify([{
-            'id': u['id'],
-            'username': u['username'],
-            'is_admin': u['is_admin'],
-            'created_at': u['created_at'],
-            'products_count': len(u.get('products', [])) if u.get('products') else 0
-        } for u in response.data]), 200
+        
+        # Format the response with proper product count
+        users = []
+        for user in response.data:
+            products = user.get('products', [])
+            product_count = products[0].get('count', 0) if products else 0
+            
+            users.append({
+                'id': user['id'],
+                'username': user['username'],
+                'is_admin': user['is_admin'],
+                'created_at': user['created_at'],
+                'products_count': product_count
+            })
+            
+        return jsonify(users), 200
     except Exception as e:
+        print(f"Error getting users: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/admin/users', methods=['POST'])
