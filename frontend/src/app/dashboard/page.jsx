@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
-import { FaCashRegister, FaSignOutAlt, FaPlus, FaShoppingCart, FaPrint, FaImage, FaEdit, FaTrash } from 'react-icons/fa';
+import { FaCashRegister, FaSignOutAlt, FaPlus, FaShoppingCart, FaPrint, FaImage, FaEdit, FaTrash, FaBox, FaSpinner } from 'react-icons/fa';
 import axios from 'axios';
 
 const formatToRupiah = (number) => {
@@ -14,6 +14,223 @@ const formatToRupiah = (number) => {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(number);
+};
+
+// Product Card
+const ProductCard = ({ product, onEdit, onDelete }) => (
+  <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+    <div className="relative w-full pb-[100%]"> {/* 1:1 aspect ratio */}
+      {product.image_url ? (
+        <img
+          src={`${process.env.NEXT_PUBLIC_API_URL}${product.image_url}`}
+          alt={product.name}
+          className="absolute top-0 left-0 w-full h-full object-cover"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = '/placeholder.png';
+          }}
+        />
+      ) : (
+        <div className="absolute top-0 left-0 w-full h-full bg-gray-100 flex items-center justify-center">
+          <FaBox className="w-8 h-8 text-gray-400" />
+        </div>
+      )}
+    </div>
+    <div className="p-4">
+      <h3 className="text-lg font-semibold text-gray-800 mb-2">{product.name}</h3>
+      <p className="text-gray-600 mb-4">{formatToRupiah(product.price)}</p>
+      <div className="flex justify-end space-x-2">
+        <button
+          onClick={() => onEdit(product)}
+          className="p-2 text-gray-600 hover:text-gray-800 transition-colors"
+        >
+          <FaEdit className="w-5 h-5" />
+        </button>
+        <button
+          onClick={() => onDelete(product.id)}
+          className="p-2 text-red-600 hover:text-red-800 transition-colors"
+        >
+          <FaTrash className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// Add/Edit Product Modal
+const ProductModal = ({ isOpen, onClose, onSubmit, editingProduct, isSubmitting }) => {
+  const [name, setName] = useState('');
+  const [price, setPrice] = useState('');
+  const [image, setImage] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (editingProduct) {
+      setName(editingProduct.name);
+      setPrice(editingProduct.price.toString());
+      setPreviewUrl(editingProduct.image_url ? `${process.env.NEXT_PUBLIC_API_URL}${editingProduct.image_url}` : '');
+    } else {
+      setName('');
+      setPrice('');
+      setImage(null);
+      setPreviewUrl('');
+    }
+  }, [editingProduct]);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast.error('Ukuran gambar terlalu besar. Maksimal 5MB.');
+        return;
+      }
+      if (!['image/jpeg', 'image/png', 'image/gif'].includes(file.type)) {
+        toast.error('Format gambar tidak didukung. Gunakan JPG, PNG, atau GIF.');
+        return;
+      }
+      setImage(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Validate price
+    const priceNum = parseFloat(price);
+    if (isNaN(priceNum) || priceNum <= 0) {
+      toast.error('Harga harus lebih besar dari 0');
+      return;
+    }
+
+    // Validate name
+    if (!name.trim()) {
+      toast.error('Nama produk harus diisi');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('name', name.trim());
+    formData.append('price', price);
+    if (image) {
+      formData.append('image', image);
+    }
+
+    try {
+      await onSubmit(formData);
+      onClose();
+    } catch (error) {
+      console.error('Error submitting product:', error);
+      // Error handling is done in the parent component
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-lg w-full max-w-md">
+        <div className="p-6">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-6">
+            {editingProduct ? 'Edit Produk' : 'Tambah Produk'}
+          </h2>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Nama Produk
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400"
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Harga
+              </label>
+              <input
+                type="number"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400"
+                required
+                min="0"
+                disabled={isSubmitting}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Gambar Produk
+              </label>
+              <div className="mt-1 flex items-center space-x-4">
+                <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-gray-100">
+                  {previewUrl ? (
+                    <img
+                      src={previewUrl}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <FaImage className="w-8 h-8 text-gray-400" />
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                  disabled={isSubmitting}
+                >
+                  Pilih Gambar
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                  disabled={isSubmitting}
+                />
+              </div>
+              <p className="mt-1 text-sm text-gray-500">
+                PNG, JPG, GIF hingga 5MB
+              </p>
+            </div>
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                disabled={isSubmitting}
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 text-sm text-white bg-gray-800 rounded-md hover:bg-gray-900 flex items-center"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <FaSpinner className="w-4 h-4 mr-2 animate-spin" />
+                    Menyimpan...
+                  </>
+                ) : (
+                  'Simpan'
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default function Dashboard() {
@@ -57,178 +274,83 @@ export default function Dashboard() {
     }
   };
 
-  const handleAddProduct = async (e) => {
-    e.preventDefault();
+  const handleAddProduct = async (formData) => {
+    setIsSubmitting(true);
     try {
-      // Show loading toast
-      const loadingToast = toast.loading('Adding product...');
-
-      const formData = new FormData();
-      formData.append('name', newProduct.name);
-      formData.append('price', String(newProduct.price));
-      if (newProduct.image) {
-        formData.append('image', newProduct.image);
-      }
-
-      console.log('Sending product data:', {
-        name: newProduct.name,
-        price: newProduct.price,
-        hasImage: !!newProduct.image
-      });
-
       const response = await api.post('/api/products', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 30000, // Increase timeout for image upload
       });
-
-      console.log('Add product response:', response.data);
-
-      if (response.data.product) {
-        const productData = {
-          ...response.data.product,
-          image_url: response.data.product.image_url ? 
-            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${response.data.product.image_url}` : null
-        };
-
-        setProducts([...products, productData]);
-        setNewProduct({ name: '', price: '', image: null });
-        setImagePreview(null);
-        toast.dismiss(loadingToast);
-        toast.success('Produk berhasil ditambahkan');
-      } else {
-        toast.dismiss(loadingToast);
-        toast.error('Failed to add product: Invalid response format');
-      }
+      
+      setProducts([...products, response.data.product]);
+      toast.success('Produk berhasil ditambahkan');
+      setShowModal(false);
     } catch (error) {
       console.error('Error adding product:', error);
-      console.error('Error details:', error.response?.data);
-      toast.error(error.response?.data?.error || 'Gagal menambahkan produk');
-    }
-  };
-
-  const addToCart = (product) => {
-    const existingItem = cart.find(item => item.id === product.id);
-    if (existingItem) {
-      setCart(cart.map(item =>
-        item.id === product.id
-          ? { ...item, quantity: item.quantity + 1 }
-          : item
-      ));
-    } else {
-      setCart([...cart, { ...product, quantity: 1 }]);
-    }
-    toast.success('Ditambahkan ke keranjang');
-  };
-
-  const removeFromCart = (productId) => {
-    setCart(cart.filter(item => item.id !== productId));
-  };
-
-  const updateQuantity = (productId, newQuantity) => {
-    if (newQuantity < 1) return;
-    setCart(cart.map(item =>
-      item.id === productId
-        ? { ...item, quantity: newQuantity }
-        : item
-    ));
-  };
-
-  const calculateTotal = () => {
-    return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  };
-
-  const handleLogout = () => {
-    logout();
-    router.push('/');
-  };
-
-  const printReceipt = async () => {
-    if (cart.length === 0) {
-      toast.error('Keranjang kosong');
-      return;
-    }
-
-    try {
-      // Show loading toast
-      const loadingToast = toast.loading('Membuat struk...');
-
-      // Format cart items to send only numerical values for prices
-      const items = cart.map(item => ({
-        name: item.name,
-        quantity: item.quantity,
-        price: parseFloat(item.price) // Ensure price is a number
-      }));
-
-      const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-      const response = await api.post('/api/generate-receipt', {
-        items,
-        total
-      });
-
-      if (response.data.pdf_url) {
-        // Dismiss loading toast
-        toast.dismiss(loadingToast);
-
-        // Get the full URL
-        const pdfUrl = response.data.pdf_url.startsWith('http') 
-          ? response.data.pdf_url 
-          : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${response.data.pdf_url}`;
-
-        // Open PDF in new tab
-        window.open(pdfUrl, '_blank');
-
-        // Clear cart after successful receipt generation
-        setCart([]);
-        toast.success('Struk berhasil dibuat');
+      if (error.code === 'ERR_NETWORK') {
+        toast.error('Gagal mengunggah produk. Periksa koneksi internet Anda.');
+      } else if (error.response?.status === 413) {
+        toast.error('Ukuran gambar terlalu besar. Maksimal 5MB.');
+      } else if (error.response?.data?.error) {
+        toast.error(error.response.data.error);
+      } else {
+        toast.error('Gagal menambahkan produk. Silakan coba lagi.');
       }
-    } catch (error) {
-      console.error('Error generating receipt:', error);
-      toast.error(error.response?.data?.error || 'Gagal membuat struk');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleUpdateProduct = async (e) => {
-    e.preventDefault();
+  const handleEditProduct = async (formData) => {
+    if (!editingProduct) return;
+    
+    setIsSubmitting(true);
     try {
-      const formData = new FormData();
-      formData.append('name', editingProduct.name);
-      formData.append('price', String(editingProduct.price));
-      if (editingProduct.newImage) {
-        formData.append('image', editingProduct.newImage);
-      }
-
       const response = await api.put(`/api/products/${editingProduct.id}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 30000, // Increase timeout for image upload
       });
-
-      const updatedProductData = {
-        ...response.data.product,
-        image_url: response.data.product.image_url ? 
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${response.data.product.image_url}` : null
-      };
       
-      setProducts(products.map(p => p.id === updatedProductData.id ? updatedProductData : p));
-      setEditingProduct(null);
-      setImagePreview(null);
+      setProducts(products.map(p => p.id === editingProduct.id ? response.data.product : p));
       toast.success('Produk berhasil diperbarui');
+      setShowModal(false);
+      setEditingProduct(null);
     } catch (error) {
       console.error('Error updating product:', error);
-      toast.error(error.response?.data?.error || 'Gagal memperbarui produk');
+      if (error.code === 'ERR_NETWORK') {
+        toast.error('Gagal memperbarui produk. Periksa koneksi internet Anda.');
+      } else if (error.response?.status === 413) {
+        toast.error('Ukuran gambar terlalu besar. Maksimal 5MB.');
+      } else if (error.response?.data?.error) {
+        toast.error(error.response.data.error);
+      } else {
+        toast.error('Gagal memperbarui produk. Silakan coba lagi.');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleDeleteProduct = async (productId) => {
     if (!window.confirm('Apakah Anda yakin ingin menghapus produk ini?')) return;
+    
     try {
-      console.log('Deleting product:', productId);
-      const response = await api.delete(`/api/products/${productId}`);
-      if (response.data.message) {
-        setProducts(products.filter(p => p.id !== productId));
-        toast.success('Produk berhasil dihapus');
-      }
+      await api.delete(`/api/products/${productId}`);
+      setProducts(products.filter(p => p.id !== productId));
+      toast.success('Produk berhasil dihapus');
     } catch (error) {
       console.error('Error deleting product:', error);
-      toast.error(error.response?.data?.error || 'Gagal menghapus produk');
+      if (error.code === 'ERR_NETWORK') {
+        toast.error('Gagal menghapus produk. Periksa koneksi internet Anda.');
+      } else if (error.response?.data?.error) {
+        toast.error(error.response.data.error);
+      } else {
+        toast.error('Gagal menghapus produk. Silakan coba lagi.');
+      }
     }
   };
 
@@ -364,56 +486,7 @@ export default function Dashboard() {
             {/* Products Grid */}
             <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
               {products.map((product) => (
-                <div key={product.id} className="bg-white rounded-lg shadow-sm overflow-hidden">
-                  <div className="w-full h-48 relative">
-                    {product.image_url ? (
-                      <img
-                        src={product.image_url}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          console.error('Image load error:', product.image_url);
-                          if (!e.target.dataset.fallbackAttempted) {
-                            e.target.dataset.fallbackAttempted = true;
-                            e.target.src = '/no-image.svg';
-                          }
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                        <div className="text-center">
-                          <FaImage className="w-12 h-12 text-gray-400 mx-auto" />
-                          <p className="mt-2 text-sm text-gray-500">Tidak ada gambar</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-4">
-                    <h3 className="text-lg font-medium text-gray-800">{product.name}</h3>
-                    <p className="text-gray-600">{formatToRupiah(product.price)}</p>
-                    <div className="mt-4 flex space-x-2">
-                      <button
-                        onClick={() => addToCart(product)}
-                        className="flex-1 flex items-center justify-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900"
-                      >
-                        <FaShoppingCart className="w-4 h-4 mr-2" />
-                        Tambah ke Keranjang
-                      </button>
-                      <button
-                        onClick={() => handleEditClick(product)}
-                        className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md"
-                      >
-                        <FaEdit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteProduct(product.id)}
-                        className="px-4 py-2 text-red-600 hover:text-red-800 border border-gray-300 rounded-md"
-                      >
-                        <FaTrash className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <ProductCard key={product.id} product={product} onEdit={handleEditClick} onDelete={handleDeleteProduct} />
               ))}
             </div>
           </div>

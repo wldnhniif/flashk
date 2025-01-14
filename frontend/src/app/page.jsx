@@ -21,11 +21,9 @@ export default function LoginPage() {
     try {
       if (isLogin) {
         await login(username, password);
-        toast.success('Berhasil masuk!');
         router.push('/dashboard');
       } else {
         await register(username, password);
-        toast.success('Pendaftaran berhasil! Silakan masuk.');
         setIsLogin(true);
         setUsername('');
         setPassword('');
@@ -38,6 +36,12 @@ export default function LoginPage() {
         errorMessage = 'Nama pengguna atau kata sandi salah';
       } else if (error?.response?.status === 409) {
         errorMessage = 'Nama pengguna sudah digunakan';
+      } else if (error?.response?.status === 400) {
+        errorMessage = error?.response?.data?.message || 'Data tidak valid';
+      } else if (error?.code === 'ERR_NETWORK') {
+        errorMessage = 'Tidak dapat terhubung ke server. Mohon coba lagi nanti.';
+      } else if (error?.response?.status === 500) {
+        errorMessage = 'Terjadi kesalahan pada server. Mohon coba lagi nanti.';
       } else if (typeof error === 'string') {
         errorMessage = error;
       } else if (error?.error) {
