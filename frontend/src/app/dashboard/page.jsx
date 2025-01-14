@@ -236,11 +236,21 @@ const ProductModal = ({ isOpen, onClose, onSubmit, editingProduct, isSubmitting 
 export default function Dashboard() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
-  const [newProduct, setNewProduct] = useState({ name: '', price: '', image: null });
+  const [showModal, setShowModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
   const { user, logout, api } = useAuth();
   const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.push('/');
+    } catch (error) {
+      console.error('Error logging out:', error);
+      toast.error('Gagal keluar. Silakan coba lagi.');
+    }
+  };
 
   useEffect(() => {
     if (!user) {
@@ -372,6 +382,54 @@ export default function Dashboard() {
     }
   };
 
+  const calculateTotal = () => {
+    return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+  };
+
+  const updateQuantity = (productId, newQuantity) => {
+    if (newQuantity < 1) return;
+    setCart(cart.map(item => 
+      item.id === productId ? { ...item, quantity: newQuantity } : item
+    ));
+  };
+
+  const removeFromCart = (productId) => {
+    setCart(cart.filter(item => item.id !== productId));
+  };
+
+  const printReceipt = async () => {
+    if (cart.length === 0) {
+      toast.error('Keranjang belanja kosong');
+      return;
+    }
+
+    try {
+      const response = await api.post('/api/transactions', {
+        items: cart.map(item => ({
+          product_id: item.id,
+          quantity: item.quantity
+        }))
+      });
+      
+      // Clear cart after successful transaction
+      setCart([]);
+      toast.success('Transaksi berhasil');
+      
+      // Open receipt in new window
+      const receiptWindow = window.open('', '_blank');
+      if (receiptWindow) {
+        receiptWindow.document.write(response.data.receipt);
+        receiptWindow.document.close();
+        receiptWindow.print();
+      } else {
+        toast.error('Pop-up diblokir. Mohon izinkan pop-up untuk mencetak struk.');
+      }
+    } catch (error) {
+      console.error('Error processing transaction:', error);
+      toast.error('Gagal memproses transaksi. Silakan coba lagi.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation Bar */}
@@ -409,84 +467,31 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Product Management Section */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-6">
-                {editingProduct ? 'Edit Produk' : 'Tambah Produk Baru'}
-              </h2>
-              <form onSubmit={editingProduct ? handleUpdateProduct : handleAddProduct} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Nama Produk</label>
-                  <input
-                    type="text"
-                    value={editingProduct ? editingProduct.name : newProduct.name}
-                    onChange={(e) => editingProduct 
-                      ? setEditingProduct({ ...editingProduct, name: e.target.value })
-                      : setNewProduct({ ...newProduct, name: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-700"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Harga</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={editingProduct ? editingProduct.price : newProduct.price}
-                    onChange={(e) => editingProduct
-                      ? setEditingProduct({ ...editingProduct, price: e.target.value })
-                      : setNewProduct({ ...newProduct, price: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-700"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Gambar Produk</label>
-                  <div className="flex items-center space-x-4">
-                    <label className="flex items-center px-4 py-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50">
-                      <FaImage className="w-5 h-5 text-gray-500 mr-2" />
-                      <span className="text-sm text-gray-600">Pilih Gambar</span>
-                      <input
-                        type="file"
-                        onChange={editingProduct ? handleEditImageChange : handleImageChange}
-                        className="hidden"
-                        accept="image/*"
-                      />
-                    </label>
-                    {imagePreview && (
-                      <img src={imagePreview} alt="Preview" className="h-12 w-12 object-cover rounded-md border border-gray-300" />
-                    )}
-                  </div>
-                </div>
-                <div className="flex space-x-4">
-                  <button
-                    type="submit"
-                    className="flex-1 flex items-center justify-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-                  >
-                    <FaPlus className="w-4 h-4 mr-2" />
-                    {editingProduct ? 'Perbarui Produk' : 'Tambah Produk'}
-                  </button>
-                  {editingProduct && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingProduct(null);
-                        setImagePreview(null);
-                        setNewProduct({ name: '', price: '', image: null });
-                      }}
-                      className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md"
-                    >
-                      Batal
-                    </button>
-                  )}
-                </div>
-              </form>
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold text-gray-800">Produk</h2>
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="flex items-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900"
+                >
+                  <FaPlus className="w-4 h-4 mr-2" />
+                  Tambah Produk
+                </button>
+              </div>
             </div>
 
             {/* Products Grid */}
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {products.map((product) => (
-                <ProductCard key={product.id} product={product} onEdit={handleEditClick} onDelete={handleDeleteProduct} />
+                <ProductCard 
+                  key={product.id} 
+                  product={product} 
+                  onEdit={(product) => {
+                    setEditingProduct(product);
+                    setShowModal(true);
+                  }} 
+                  onDelete={handleDeleteProduct} 
+                />
               ))}
             </div>
           </div>
@@ -554,6 +559,18 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* Product Modal */}
+        <ProductModal
+          isOpen={showModal}
+          onClose={() => {
+            setShowModal(false);
+            setEditingProduct(null);
+          }}
+          onSubmit={editingProduct ? handleEditProduct : handleAddProduct}
+          editingProduct={editingProduct}
+          isSubmitting={isSubmitting}
+        />
       </div>
     </div>
   );
