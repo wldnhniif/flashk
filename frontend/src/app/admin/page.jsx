@@ -82,7 +82,7 @@ export default function AdminDashboard() {
     }
 
     try {
-      const response = await api.put(`/api/admin/users/${userId}`, {
+      const response = await api.patch(`/api/admin/users/${userId}`, {
         username: updatedData.username.trim(),
         is_admin: updatedData.is_admin
       });
@@ -160,7 +160,7 @@ export default function AdminDashboard() {
         formData.append('image', updatedData.image);
       }
 
-      const response = await api.put(`/api/admin/products/${productId}`, formData, {
+      const response = await api.patch(`/api/admin/products/${productId}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

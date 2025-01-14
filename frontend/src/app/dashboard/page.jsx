@@ -108,7 +108,8 @@ export default function Dashboard() {
         data.append('image', image);
       }
 
-      const response = await api.put(`/api/products/${productId}`, data, {
+      // Use PATCH instead of PUT
+      const response = await api.patch(`/api/products/${productId}`, data, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
