@@ -23,11 +23,16 @@ export function AuthProvider({ children }) {
 
   // Add request interceptor to include token from cookie
   api.interceptors.request.use((config) => {
-    const token = Cookies.get(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME || 'kasirkuy_auth_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    try {
+      const token = Cookies.get(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME || 'kasirkuy_auth_token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    } catch (error) {
+      console.error('Request interceptor error:', error);
+      return config;
     }
-    return config;
   }, (error) => {
     console.error('Request error:', error);
     return Promise.reject(error);
@@ -43,12 +48,14 @@ export function AuthProvider({ children }) {
       
       // Handle 401 Unauthorized
       if (error.response?.status === 401) {
-        Cookies.remove(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME || 'kasirkuy_auth_token', {
+        const cookieOptions = {
           path: '/',
           domain: window.location.hostname,
           secure: true,
           sameSite: 'None'
-        });
+        };
+        
+        Cookies.remove(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME || 'kasirkuy_auth_token', cookieOptions);
         setUser(null);
       }
       
@@ -58,8 +65,12 @@ export function AuthProvider({ children }) {
         errorMessage = 'Nama pengguna atau kata sandi salah';
       } else if (error.response?.status === 409) {
         errorMessage = error.response.data.message || 'Konflik data';
-      } else if (error.response?.status === 0 || !error.response || error.code === 'ERR_NETWORK') {
+      } else if (error.response?.status === 400) {
+        errorMessage = error.response.data.message || 'Data tidak valid';
+      } else if (error.code === 'ERR_NETWORK') {
         errorMessage = 'Tidak dapat terhubung ke server. Mohon coba lagi nanti.';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Terjadi kesalahan pada server. Mohon coba lagi nanti.';
       } else {
         errorMessage = error.response?.data?.message || 'Terjadi kesalahan';
       }
@@ -71,9 +82,19 @@ export function AuthProvider({ children }) {
 
   const login = async (username, password) => {
     try {
+      if (!username || !username.trim()) {
+        toast.error('Nama pengguna harus diisi');
+        return;
+      }
+      
+      if (!password || !password.trim()) {
+        toast.error('Kata sandi harus diisi');
+        return;
+      }
+      
       const response = await api.post('/api/login', { 
-        username, 
-        password 
+        username: username.trim(), 
+        password: password.trim() 
       }, {
         headers: {
           'Content-Type': 'application/json',
@@ -130,9 +151,19 @@ export function AuthProvider({ children }) {
 
   const register = async (username, password) => {
     try {
+      if (!username || !username.trim()) {
+        toast.error('Nama pengguna harus diisi');
+        return false;
+      }
+      
+      if (!password || !password.trim()) {
+        toast.error('Kata sandi harus diisi');
+        return false;
+      }
+      
       const response = await api.post('/api/register', { 
-        username, 
-        password 
+        username: username.trim(), 
+        password: password.trim() 
       }, {
         headers: {
           'Content-Type': 'application/json',
@@ -147,6 +178,8 @@ export function AuthProvider({ children }) {
     } catch (error) {
       if (error.response?.status === 409) {
         toast.error('Nama pengguna sudah digunakan');
+      } else if (error.response?.status === 400) {
+        toast.error(error.response.data.message || 'Data tidak valid');
       } else if (error.code === 'ERR_NETWORK') {
         toast.error('Tidak dapat terhubung ke server. Mohon coba lagi nanti.');
       } else {

@@ -359,12 +359,24 @@ def is_password_valid(password):
 def register():
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'message': 'No data provided'}), 400
+            
         username = data.get('username')
         password = data.get('password')
         
         # Validate input
         if not username or not password:
             return jsonify({'message': 'Username and password are required'}), 400
+            
+        # Validate username format
+        if not re.match(r'^[a-zA-Z0-9_]{3,20}$', username):
+            return jsonify({'message': 'Username must be 3-20 characters long and contain only letters, numbers, and underscores'}), 400
+            
+        # Validate password strength
+        is_valid, message = is_password_valid(password)
+        if not is_valid:
+            return jsonify({'message': message}), 400
             
         # Check if username already exists
         existing_user = get_user_by_username(username)
@@ -387,6 +399,9 @@ def register():
 def login():
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'message': 'No data provided'}), 400
+            
         username = data.get('username')
         password = data.get('password')
         
@@ -405,8 +420,14 @@ def login():
         if not verify_password(password, user['password']):
             return jsonify({'message': 'Invalid username or password'}), 401
             
-        # Create access token
-        access_token = create_access_token(identity=user['id'])
+        # Create access token with additional claims
+        access_token = create_access_token(
+            identity=user['id'],
+            additional_claims={
+                'username': user['username'],
+                'is_admin': user['is_admin']
+            }
+        )
         
         # Set cookie and prepare response
         response = jsonify({
@@ -1165,6 +1186,48 @@ def after_request(response):
 @app.route('/api/<path:path>', methods=['OPTIONS'])
 def handle_options(path):
     return '', 204
+
+# Add root route handler
+@app.route('/')
+def root():
+    return jsonify({
+        'status': 'healthy',
+        'message': 'KasirKuy API is running'
+    }), 200
+
+# Update error handlers
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'Not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': 'Internal server error'}), 500
+
+@app.errorhandler(405)
+def method_not_allowed(error):
+    return jsonify({'error': 'Method not allowed'}), 405
+
+# Add verify endpoint
+@app.route('/api/verify', methods=['GET'])
+@jwt_required()
+def verify_token():
+    try:
+        current_user_id = get_jwt_identity()
+        user_response = get_user_by_id(current_user_id)
+        
+        if not user_response.data:
+            return jsonify({'message': 'User not found'}), 404
+            
+        user = user_response.data[0]
+        return jsonify({
+            'id': user['id'],
+            'username': user['username'],
+            'is_admin': user['is_admin']
+        })
+    except Exception as e:
+        print(f"Verify error: {str(e)}")
+        return jsonify({'message': 'An error occurred during verification'}), 500
 
 if __name__ == '__main__':
     # Create default admin user if none exists
