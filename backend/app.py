@@ -788,14 +788,14 @@ def generate_receipt():
         filename = f"receipt_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}.pdf"
         pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
-        # Create PDF with custom page size and margins - slightly wider for better spacing
-        page_width = 3.5 * inch  # Increased width for better spacing
+        # Create PDF with custom page size and margins
+        page_width = 3.2 * inch  # Slightly reduced width
         page_height = 7.0 * inch
         doc = SimpleDocTemplate(
             pdf_path,
             pagesize=(page_width, page_height),
-            rightMargin=0.25*inch,
-            leftMargin=0.25*inch,
+            rightMargin=0.15*inch,  # Reduced margins
+            leftMargin=0.15*inch,
             topMargin=0.3*inch,
             bottomMargin=0.3*inch
         )
@@ -810,12 +810,12 @@ def generate_receipt():
         secondary_color = colors.HexColor('#6b7280')  # Medium gray
         light_bg = colors.HexColor('#f3f4f6')      # Light gray background
 
-        # Custom styles with improved spacing
+        # Custom styles with adjusted font sizes
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
-            fontSize=16,
-            spaceAfter=6,
+            fontSize=14,  # Reduced from 16
+            spaceAfter=4,  # Reduced spacing
             alignment=1,
             textColor=primary_color,
             fontName='Helvetica-Bold'
@@ -824,8 +824,8 @@ def generate_receipt():
         subtitle_style = ParagraphStyle(
             'Subtitle',
             parent=styles['Normal'],
-            fontSize=10,
-            spaceAfter=12,
+            fontSize=8,  # Reduced from 10
+            spaceAfter=8,  # Reduced spacing
             alignment=1,
             textColor=text_color,
             fontName='Helvetica'
@@ -834,14 +834,14 @@ def generate_receipt():
         date_style = ParagraphStyle(
             'DateStyle',
             parent=styles['Normal'],
-            fontSize=8,
-            spaceAfter=20,  # Increased spacing before table
+            fontSize=7,  # Reduced from 8
+            spaceAfter=12,  # Adjusted spacing
             alignment=1,
             textColor=secondary_color,
             fontName='Helvetica'
         )
 
-        # Add header with improved spacing
+        # Add header
         story.append(Paragraph("KasirKuy", title_style))
         story.append(Paragraph("Sales Receipt", subtitle_style))
         
@@ -851,63 +851,64 @@ def generate_receipt():
         time_str = current_time.strftime('%I:%M %p')
         story.append(Paragraph(f"{date_str} • {time_str}", date_style))
 
-        # Add subtle divider with more spacing
+        # Add subtle divider
         story.append(HRFlowable(
             width="100%",
             thickness=0.5,
             lineCap='round',
             color=colors.HexColor('#e5e7eb'),
-            spaceBefore=8,
-            spaceAfter=12
+            spaceBefore=6,
+            spaceAfter=8
         ))
 
         # Improved price formatting with proper spacing
         def format_rupiah(amount):
-            return f"Rp {amount:,}".replace(',', '.').rjust(12)
+            formatted = f"Rp {amount:,.0f}".replace(',', '.')
+            return formatted.rjust(10)  # Reduced right justification
 
-        # Modern table styling with improved spacing
+        # Modern table styling with adjusted spacing
         table_style = TableStyle([
             # Header styling
             ('BACKGROUND', (0, 0), (-1, 0), light_bg),
             ('TEXTCOLOR', (0, 0), (-1, 0), text_color),
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 9),  # Slightly larger header
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('FONTSIZE', (0, 0), (-1, 0), 7),  # Reduced header font size
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
+            ('TOPPADDING', (0, 0), (-1, 0), 4),
             ('LINEBELOW', (0, 0), (-1, 0), 0.5, colors.HexColor('#e5e7eb')),
             
             # Content styling
             ('FONTNAME', (0, 1), (-1, -3), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -3), 8),
+            ('FONTSIZE', (0, 1), (-1, -3), 7),  # Reduced content font size
             ('ALIGN', (0, 1), (0, -3), 'LEFT'),     # Item names left-aligned
             ('ALIGN', (1, 1), (1, -3), 'CENTER'),   # Quantities center-aligned
             ('ALIGN', (2, 1), (-1, -3), 'RIGHT'),   # Prices and totals right-aligned
             ('TEXTCOLOR', (0, 1), (-1, -3), text_color),
-            ('BOTTOMPADDING', (0, 1), (-1, -3), 6),
-            ('TOPPADDING', (0, 1), (-1, -3), 6),
+            ('BOTTOMPADDING', (0, 1), (-1, -3), 3),  # Reduced padding
+            ('TOPPADDING', (0, 1), (-1, -3), 3),     # Reduced padding
             ('GRID', (0, 0), (-1, -2), 0.5, colors.HexColor('#f3f4f6')),
             
-            # Total section styling with more emphasis
+            # Total section styling
             ('FONTNAME', (-2, -1), (-1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (-2, -1), (-1, -1), 10),  # Larger total font
+            ('FONTSIZE', (-2, -1), (-1, -1), 8),  # Reduced total font size
             ('TEXTCOLOR', (-2, -1), (-1, -1), primary_color),
             ('ALIGN', (-2, -1), (-1, -1), 'RIGHT'),
             ('LINEABOVE', (-2, -1), (-1, -1), 1, colors.HexColor('#e5e7eb')),
-            ('TOPPADDING', (-2, -1), (-1, -1), 12),
-            ('BOTTOMPADDING', (-2, -1), (-1, -1), 6),
+            ('TOPPADDING', (-2, -1), (-1, -1), 8),
+            ('BOTTOMPADDING', (-2, -1), (-1, -1), 4),
             
-            # Add spacing between columns
-            ('LEFTPADDING', (0, 0), (-1, -1), 5),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+            # Add minimal spacing between columns
+            ('LEFTPADDING', (0, 0), (-1, -1), 3),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 3),
         ])
 
-        # Prepare table data with improved formatting and spacing
+        # Prepare table data with improved formatting
         table_data = [['Item', 'Qty', 'Price', 'Total']]
         for item in items:
             name = item['name']
-            if len(name) > 20:  # Allow longer names due to wider page
-                name = name[:18] + '..'
+            if len(name) > 16:  # Reduced max length
+                name = name[:14] + '..'
             table_data.append([
                 name,
                 str(item['quantity']),
@@ -915,40 +916,40 @@ def generate_receipt():
                 format_rupiah(item['price'] * item['quantity'])
             ])
         
-        # Add total row with improved spacing
+        # Add total row
         table_data.append(['', '', 'Total:', format_rupiah(total)])
 
         # Create and style the table with optimized column widths
-        col_widths = [1.6*inch, 0.3*inch, 0.7*inch, 0.7*inch]  # Adjusted widths
+        col_widths = [1.4*inch, 0.3*inch, 0.65*inch, 0.65*inch]  # Adjusted widths
         table = Table(table_data, colWidths=col_widths)
         table.setStyle(table_style)
         story.append(table)
 
-        # Add bottom divider with more spacing
+        # Add bottom divider
         story.append(HRFlowable(
             width="100%",
             thickness=0.5,
             lineCap='round',
             color=colors.HexColor('#e5e7eb'),
-            spaceBefore=12,
-            spaceAfter=12
+            spaceBefore=8,
+            spaceAfter=8
         ))
 
-        # Modern footer styling with improved spacing
+        # Footer styling with smaller font
         footer_style = ParagraphStyle(
             'Footer',
             parent=styles['Normal'],
-            fontSize=8,
+            fontSize=7,  # Reduced font size
             alignment=1,
             textColor=secondary_color,
             fontName='Helvetica',
-            spaceBefore=6,
-            spaceAfter=3
+            spaceBefore=4,
+            spaceAfter=2
         )
         
-        # Add footer with improved spacing
+        # Add footer
         story.append(Paragraph("Thank you for your purchase!", footer_style))
-        story.append(Spacer(1, 4))
+        story.append(Spacer(1, 2))
         story.append(Paragraph("Please come again", footer_style))
         
         # Build PDF
@@ -957,8 +958,6 @@ def generate_receipt():
         # Get the base URL from environment or default
         base_url = os.getenv('BASE_URL', request.url_root.rstrip('/'))
         pdf_url = f"{base_url}/api/uploads/{filename}"
-
-        print(f"Generated PDF URL: {pdf_url}")  # Debug log
 
         return jsonify({
             'message': 'Receipt generated successfully',
