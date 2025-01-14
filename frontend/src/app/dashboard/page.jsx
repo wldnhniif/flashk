@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
-import { FaCashRegister, FaSignOutAlt, FaPlus, FaShoppingCart, FaPrint, FaImage, FaEdit, FaTrash, FaBox, FaSpinner } from 'react-icons/fa';
+import { FaCashRegister, FaSignOutAlt, FaPlus, FaShoppingCart, FaPrint, FaImage, FaEdit, FaTrash, FaBox, FaSpinner, FaTimes } from 'react-icons/fa';
 import axios from 'axios';
 
 const formatToRupiah = (number) => {
@@ -22,6 +22,7 @@ export default function Dashboard() {
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [showCart, setShowCart] = useState(false);
   const { user, logout, api, loading } = useAuth();
   const router = useRouter();
 
@@ -91,15 +92,20 @@ export default function Dashboard() {
     
     setIsSubmitting(true);
     try {
-      // Ensure we have the product ID
       const productId = editingProduct.id;
       
       // Create FormData with all fields
       const data = new FormData();
-      data.append('name', formData.get('name'));
-      data.append('price', formData.get('price'));
-      if (formData.get('image')) {
-        data.append('image', formData.get('image'));
+      const name = formData.get('name') || editingProduct.name;
+      const price = formData.get('price') || editingProduct.price;
+      
+      data.append('name', name.trim());
+      data.append('price', price);
+      
+      // Only append image if a new one is selected
+      const image = formData.get('image');
+      if (image && image.size > 0) {
+        data.append('image', image);
       }
 
       const response = await api.put(`/api/products/${productId}`, data, {
@@ -117,6 +123,9 @@ export default function Dashboard() {
       toast.success('Produk berhasil diperbarui');
       setShowModal(false);
       setEditingProduct(null);
+      
+      // Refresh the products list
+      await fetchProducts();
     } catch (error) {
       console.error('Error updating product:', error);
       toast.error(error.response?.data?.message || 'Gagal memperbarui produk');
@@ -276,6 +285,7 @@ export default function Dashboard() {
         setName(editingProduct.name);
         setPrice(editingProduct.price.toString());
         setPreviewUrl(editingProduct.image_url ? `${process.env.NEXT_PUBLIC_API_URL}${editingProduct.image_url}?t=${new Date().getTime()}` : '');
+        setImage(null); // Reset image when editing
       } else {
         setName('');
         setPrice('');
@@ -327,6 +337,7 @@ export default function Dashboard() {
         await onSubmit(formData);
       } catch (error) {
         console.error('Error submitting product:', error);
+        toast.error('Gagal menyimpan produk');
       }
     };
 
@@ -473,7 +484,7 @@ export default function Dashboard() {
         </div>
       </nav>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 pb-32 lg:pb-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Products Section */}
           <div className="lg:col-span-2">
@@ -506,59 +517,96 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Cart Section - Make it sticky on desktop and fixed on mobile */}
-          <div className="fixed bottom-0 left-0 right-0 lg:static lg:bottom-auto bg-white shadow-lg lg:shadow-sm p-4 lg:p-6 lg:rounded-lg lg:h-fit lg:sticky lg:top-24">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Keranjang</h2>
-              <button
-                onClick={handlePrint}
-                disabled={cart.length === 0}
-                className="flex items-center px-3 sm:px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
-              >
-                <FaPrint className="w-4 h-4 mr-2" />
-                Cetak Struk
-              </button>
-            </div>
-
-            <div className="space-y-3 max-h-[40vh] lg:max-h-[calc(100vh-24rem)] overflow-y-auto">
-              {cart.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-gray-800 truncate">{item.name}</h3>
-                    <p className="text-sm text-gray-600">{formatToRupiah(item.price)} × {item.quantity}</p>
-                  </div>
-                  <div className="flex items-center space-x-3 ml-4">
-                    <button
-                      onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)}
-                      className="p-1 text-gray-600 hover:text-gray-800 text-lg"
-                    >
-                      -
-                    </button>
-                    <span className="w-8 text-center">{item.quantity}</span>
-                    <button
-                      onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)}
-                      className="p-1 text-gray-600 hover:text-gray-800 text-lg"
-                    >
-                      +
-                    </button>
-                  </div>
+          {/* Cart Section - Hidden by default on mobile, shown when cart button is clicked */}
+          <div className={`fixed inset-0 bg-black bg-opacity-50 transition-opacity lg:relative lg:bg-transparent lg:block ${showCart ? 'opacity-100' : 'opacity-0 pointer-events-none lg:opacity-100 lg:pointer-events-auto'}`}>
+            <div className={`fixed bottom-0 left-0 right-0 bg-white transform transition-transform lg:static lg:transform-none ${showCart ? 'translate-y-0' : 'translate-y-full lg:translate-y-0'}`}>
+              {/* Cart Header with close button on mobile */}
+              <div className="flex justify-between items-center p-4 border-b border-gray-200 lg:border-none sticky top-0 bg-white">
+                <div className="flex items-center space-x-2">
+                  <h2 className="text-lg font-semibold text-gray-800">Keranjang</h2>
+                  <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-sm">
+                    {cart.length} item
+                  </span>
                 </div>
-              ))}
-            </div>
-
-            {cart.length > 0 ? (
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <div className="flex justify-between items-center text-lg font-semibold text-gray-800">
-                  <span>Total</span>
-                  <span>{formatToRupiah(calculateTotal())}</span>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handlePrint}
+                    disabled={cart.length === 0}
+                    className="flex items-center px-3 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  >
+                    <FaPrint className="w-4 h-4 mr-2" />
+                    Cetak Struk
+                  </button>
+                  <button
+                    onClick={() => setShowCart(false)}
+                    className="lg:hidden text-gray-500 hover:text-gray-700"
+                  >
+                    <FaTimes className="w-6 h-6" />
+                  </button>
                 </div>
               </div>
-            ) : (
-              <div className="text-center text-gray-500 py-6">
-                Keranjang kosong
+
+              {/* Cart Items */}
+              <div className="p-4 max-h-[60vh] lg:max-h-[calc(100vh-24rem)] overflow-y-auto">
+                {cart.length > 0 ? (
+                  <div className="space-y-3">
+                    {cart.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-gray-800 truncate">{item.name}</h3>
+                          <p className="text-sm text-gray-600">{formatToRupiah(item.price)} × {item.quantity}</p>
+                        </div>
+                        <div className="flex items-center space-x-3 ml-4">
+                          <button
+                            onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)}
+                            className="p-1 text-gray-600 hover:text-gray-800 text-lg"
+                          >
+                            -
+                          </button>
+                          <span className="w-8 text-center">{item.quantity}</span>
+                          <button
+                            onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)}
+                            className="p-1 text-gray-600 hover:text-gray-800 text-lg"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center text-gray-500 py-6">
+                    Keranjang kosong
+                  </div>
+                )}
               </div>
-            )}
+
+              {/* Cart Total */}
+              {cart.length > 0 && (
+                <div className="p-4 border-t border-gray-200 bg-white sticky bottom-0">
+                  <div className="flex justify-between items-center text-lg font-semibold text-gray-800">
+                    <span>Total</span>
+                    <span>{formatToRupiah(calculateTotal())}</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Floating Cart Button - Only visible on mobile when cart is hidden */}
+          <button
+            onClick={() => setShowCart(true)}
+            className={`fixed bottom-4 right-4 z-20 lg:hidden bg-gray-800 text-white p-4 rounded-full shadow-lg ${showCart ? 'hidden' : ''}`}
+          >
+            <div className="relative">
+              <FaShoppingCart className="w-6 h-6" />
+              {cart.length > 0 && (
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                  {cart.length}
+                </span>
+              )}
+            </div>
+          </button>
         </div>
       </div>
 

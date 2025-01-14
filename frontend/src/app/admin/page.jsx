@@ -19,7 +19,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState([]);
   const [products, setProducts] = useState([]);
   const [newUser, setNewUser] = useState({ username: '', password: '', is_admin: false });
-  const [editingUser, _setEditingUser] = useState(null);
+  const [editingUser, setEditingUser] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
   const { user, api, logout } = useAuth();
   const router = useRouter();
@@ -83,14 +83,14 @@ export default function AdminDashboard() {
 
     try {
       const response = await api.put(`/api/admin/users/${userId}`, {
-        username: updatedData.username,
+        username: updatedData.username.trim(),
         is_admin: updatedData.is_admin
       });
 
       if (response.data) {
         toast.success('Pengguna berhasil diperbarui');
         await fetchData(); // Refresh data
-        _setEditingUser(null); // Use the correct setter
+        setEditingUser(null);
       } else {
         throw new Error('Failed to update user');
       }
@@ -146,39 +146,36 @@ export default function AdminDashboard() {
   };
 
   const handleUpdateProduct = async (productId, updatedData) => {
+    if (!updatedData.name.trim() || !updatedData.price) {
+      toast.error('Nama dan harga produk harus diisi');
+      return;
+    }
+
     try {
       const formData = new FormData();
       formData.append('name', updatedData.name.trim());
       formData.append('price', updatedData.price);
-      if (updatedData.image) {
+      
+      if (updatedData.image instanceof File) {
         formData.append('image', updatedData.image);
       }
 
-      await api.put(`/api/admin/products/${productId}`, formData, {
+      const response = await api.put(`/api/admin/products/${productId}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-      toast.success('Produk berhasil diperbarui');
-      fetchData(); // Refresh data
-      setEditingProduct(null);
+
+      if (response.data) {
+        toast.success('Produk berhasil diperbarui');
+        await fetchData(); // Refresh data
+        setEditingProduct(null);
+      } else {
+        throw new Error('Failed to update product');
+      }
     } catch (error) {
       console.error('Error updating product:', error);
       toast.error(error.response?.data?.message || 'Gagal memperbarui produk');
-    }
-  };
-
-  // Function to safely set editing user
-  const setEditingUser = (user) => {
-    if (user) {
-      _setEditingUser({
-        id: user.id,
-        username: user.username,
-        is_admin: user.is_admin,
-        created_at: user.created_at
-      });
-    } else {
-      _setEditingUser(null);
     }
   };
 
@@ -307,10 +304,10 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {users.map((user) => (
-                    <tr key={user.id} className="hover:bg-gray-50">
+                  {users.map((userData) => (
+                    <tr key={userData.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-900">
-                        {editingUser?.id === user.id ? (
+                        {editingUser?.id === userData.id ? (
                           <input
                             type="text"
                             value={editingUser.username}
@@ -318,11 +315,11 @@ export default function AdminDashboard() {
                             className="px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900 w-full"
                           />
                         ) : (
-                          user.username
+                          userData.username
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">
-                        {editingUser?.id === user.id ? (
+                        {editingUser?.id === userData.id ? (
                           <label className="flex items-center space-x-2">
                             <input
                               type="checkbox"
@@ -334,14 +331,14 @@ export default function AdminDashboard() {
                           </label>
                         ) : (
                           <span className={`px-2 py-1 rounded-full text-xs ${
-                            user.is_admin ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                            userData.is_admin ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
                           }`}>
-                            {user.is_admin ? 'Admin' : 'User'}
+                            {userData.is_admin ? 'Admin' : 'User'}
                           </span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">
-                        {new Date(user.created_at).toLocaleDateString('id-ID', {
+                        {new Date(userData.created_at).toLocaleDateString('id-ID', {
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric',
@@ -350,10 +347,10 @@ export default function AdminDashboard() {
                         })}
                       </td>
                       <td className="px-4 py-3 text-right space-x-2">
-                        {editingUser?.id === user.id ? (
+                        {editingUser?.id === userData.id ? (
                           <>
                             <button
-                              onClick={() => handleUpdateUser(user.id, editingUser)}
+                              onClick={() => handleUpdateUser(userData.id, editingUser)}
                               className="text-green-600 hover:text-green-800"
                             >
                               <FaCheck className="w-4 h-4 inline" />
@@ -368,15 +365,20 @@ export default function AdminDashboard() {
                         ) : (
                           <>
                             <button
-                              onClick={() => setEditingUser(user)}
+                              onClick={() => setEditingUser({
+                                id: userData.id,
+                                username: userData.username,
+                                is_admin: userData.is_admin,
+                                created_at: userData.created_at
+                              })}
                               className="text-gray-600 hover:text-gray-800"
                             >
                               <FaEdit className="w-4 h-4 inline" />
                             </button>
                             <button
-                              onClick={() => handleDeleteUser(user.id)}
+                              onClick={() => handleDeleteUser(userData.id)}
                               className="text-red-600 hover:text-red-800"
-                              disabled={user.is_admin && users.filter(u => u.is_admin).length === 1}
+                              disabled={userData.is_admin && users.filter(u => u.is_admin).length === 1}
                             >
                               <FaTrash className="w-4 h-4 inline" />
                             </button>
@@ -392,117 +394,146 @@ export default function AdminDashboard() {
         </div>
 
         {/* Products Table */}
-        <div className="bg-white rounded-lg shadow-sm">
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-6">Daftar Produk</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">Nama Produk</th>
-                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">Harga</th>
-                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">Dibuat Oleh</th>
-                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">Tanggal Dibuat</th>
-                    <th className="px-4 py-2 text-right text-sm font-medium text-gray-600">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {products.map((product) => (
-                    <tr key={product.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-900">
-                        <div className="flex items-center space-x-3">
-                          {product.image_url ? (
-                            <img
-                              src={`${process.env.NEXT_PUBLIC_API_URL}${product.image_url}?t=${new Date().getTime()}`}
-                              alt={product.name}
-                              className="w-8 h-8 rounded-full object-cover"
-                              onError={(e) => {
-                                e.target.onerror = null;
-                                e.target.src = '/placeholder.png';
-                                console.error('Failed to load image:', product.image_url);
-                              }}
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                              <FaBox className="w-4 h-4 text-gray-400" />
-                            </div>
-                          )}
-                          {editingProduct?.id === product.id ? (
-                            <input
-                              type="text"
-                              value={editingProduct.name}
-                              onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                              className="px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900 flex-1"
-                            />
-                          ) : (
-                            <span>{product.name}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
-                        {editingProduct?.id === product.id ? (
-                          <input
-                            type="number"
-                            value={editingProduct.price}
-                            onChange={(e) => setEditingProduct({ ...editingProduct, price: e.target.value })}
-                            className="px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900 w-32"
-                            min="0"
+        <div className="mt-8">
+          <h2 className="text-xl font-semibold mb-4">Daftar Produk</h2>
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Gambar
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Nama
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Harga
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Tanggal Dibuat
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Aksi
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {products.map((product) => (
+                  <tr key={product.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      {editingProduct?.id === product.id ? (
+                        <div className="flex items-center">
+                          <img
+                            src={editingProduct.imagePreview || `${process.env.NEXT_PUBLIC_API_URL}${product.image_url}?t=${new Date().getTime()}`}
+                            alt={product.name}
+                            className="h-16 w-16 object-cover rounded"
                           />
-                        ) : (
-                          formatToRupiah(product.price)
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
-                        {product.user_name}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
-                        {new Date(product.created_at).toLocaleDateString('id-ID', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </td>
-                      <td className="px-4 py-3 text-right space-x-2">
-                        {editingProduct?.id === product.id ? (
-                          <>
-                            <button
-                              onClick={() => handleUpdateProduct(product.id, editingProduct)}
-                              className="text-green-600 hover:text-green-800"
-                            >
-                              <FaCheck className="w-4 h-4 inline" />
-                            </button>
-                            <button
-                              onClick={() => setEditingProduct(null)}
-                              className="text-gray-600 hover:text-gray-800"
-                            >
-                              <FaTimes className="w-4 h-4 inline" />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => setEditingProduct(product)}
-                              className="text-gray-600 hover:text-gray-800"
-                            >
-                              <FaEdit className="w-4 h-4 inline" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteProduct(product.id)}
-                              className="text-red-600 hover:text-red-800"
-                            >
-                              <FaTrash className="w-4 h-4 inline" />
-                            </button>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (file) {
+                                const imageUrl = URL.createObjectURL(file);
+                                setEditingProduct({
+                                  ...editingProduct,
+                                  image: file,
+                                  imagePreview: imageUrl
+                                });
+                              }
+                            }}
+                            className="ml-2"
+                          />
+                        </div>
+                      ) : (
+                        <img
+                          src={`${process.env.NEXT_PUBLIC_API_URL}${product.image_url}?t=${new Date().getTime()}`}
+                          alt={product.name}
+                          className="h-16 w-16 object-cover rounded"
+                          loading="lazy"
+                          onError={() => console.error('Failed to load image:', product.image_url)}
+                        />
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {editingProduct?.id === product.id ? (
+                        <input
+                          type="text"
+                          value={editingProduct.name}
+                          onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                          className="px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900 w-full"
+                        />
+                      ) : (
+                        product.name
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {editingProduct?.id === product.id ? (
+                        <input
+                          type="number"
+                          value={editingProduct.price}
+                          onChange={(e) => setEditingProduct({ ...editingProduct, price: e.target.value })}
+                          className="px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900 w-full"
+                        />
+                      ) : (
+                        new Intl.NumberFormat('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR'
+                        }).format(product.price)
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {new Date(product.created_at).toLocaleDateString('id-ID', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </td>
+                    <td className="px-4 py-3 text-right space-x-2">
+                      {editingProduct?.id === product.id ? (
+                        <>
+                          <button
+                            onClick={() => handleUpdateProduct(product.id, editingProduct)}
+                            className="text-green-600 hover:text-green-800"
+                          >
+                            <FaCheck className="w-4 h-4 inline" />
+                          </button>
+                          <button
+                            onClick={() => setEditingProduct(null)}
+                            className="text-gray-600 hover:text-gray-800"
+                          >
+                            <FaTimes className="w-4 h-4 inline" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setEditingProduct({
+                              id: product.id,
+                              name: product.name,
+                              price: product.price,
+                              image_url: product.image_url,
+                              created_at: product.created_at
+                            })}
+                            className="text-gray-600 hover:text-gray-800"
+                          >
+                            <FaEdit className="w-4 h-4 inline" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProduct(product.id)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <FaTrash className="w-4 h-4 inline" />
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
