@@ -43,24 +43,42 @@ app = Flask(__name__)
 
 # Configure CORS with cookie support
 CORS(app, resources={
-    r"/api/*": {
+    r"/*": {  # Allow CORS for all routes
         "origins": [
             "http://localhost:3000",
             "https://kasirkuy-one.vercel.app",
             "https://kasirkuy-git-main-wildan-hanifs-projects.vercel.app",
-            "https://kasirkuy-adjn6wdqz-wildan-hanifs-projects.vercel.app",
+            "https://kasirkuy-3xu6aq1qr-wildan-hanifs-projects.vercel.app",
             "https://kasirkuy.vercel.app",
-            "https://sticky-marie-ann-kasirkuy-f46a83f8.koyeb.app",
-            "https://*.vercel.app"  # Allow all Vercel subdomains
+            "https://sticky-marie-ann-kasirkuy-f46a83f8.koyeb.app"
         ],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
         "expose_headers": ["Content-Range", "X-Content-Range"],
         "supports_credentials": True,
-        "max_age": 3600,  # Increase preflight cache to 1 hour
-        "allow_credentials": True  # Explicitly allow credentials
+        "allow_credentials": True,
+        "max_age": 3600
     }
 })
+
+# Add CORS headers to all responses
+@app.after_request
+def add_cors_headers(response):
+    origin = request.headers.get('Origin')
+    if origin in [
+        "http://localhost:3000",
+        "https://kasirkuy-one.vercel.app",
+        "https://kasirkuy-git-main-wildan-hanifs-projects.vercel.app",
+        "https://kasirkuy-3xu6aq1qr-wildan-hanifs-projects.vercel.app",
+        "https://kasirkuy.vercel.app",
+        "https://sticky-marie-ann-kasirkuy-f46a83f8.koyeb.app"
+    ]:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, Origin, X-Requested-With'
+        response.headers['Access-Control-Expose-Headers'] = 'Content-Range, X-Content-Range'
+    return response
 
 # Initialize Supabase client
 try:

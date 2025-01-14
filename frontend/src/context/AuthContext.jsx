@@ -12,16 +12,17 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+    baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000',
     headers: {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
     },
-    withCredentials: true // Enable sending cookies with cross-origin requests
+    withCredentials: true
   });
 
   // Add request interceptor to include token from cookie
   api.interceptors.request.use((config) => {
-    const token = Cookies.get(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME);
+    const token = Cookies.get(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME || 'kasirkuy_auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -37,9 +38,14 @@ export function AuthProvider({ children }) {
       return response;
     },
     (error) => {
+      console.error('Response error:', error);
+      
       // Handle 401 Unauthorized
       if (error.response?.status === 401) {
-        Cookies.remove(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME);
+        Cookies.remove(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME || 'kasirkuy_auth_token', { 
+          path: '/',
+          domain: window.location.hostname
+        });
         setUser(null);
       }
       
@@ -49,6 +55,8 @@ export function AuthProvider({ children }) {
         errorMessage = 'Nama pengguna atau kata sandi salah';
       } else if (error.response?.status === 409) {
         errorMessage = error.response.data.message || 'Konflik data';
+      } else if (error.response?.status === 0 || !error.response) {
+        errorMessage = 'Tidak dapat terhubung ke server. Mohon coba lagi nanti.';
       } else {
         errorMessage = error.response?.data?.message || 'Terjadi kesalahan';
       }
@@ -63,15 +71,21 @@ export function AuthProvider({ children }) {
       const response = await api.post('/api/login', { username, password });
       const { token, user: userData } = response.data;
       
+      if (!token || !userData) {
+        throw new Error('Invalid response from server');
+      }
+      
       // Store token in cookie
       Cookies.set(process.env.NEXT_PUBLIC_JWT_COOKIE_NAME || 'kasirkuy_auth_token', token, {
         expires: 7, // 7 days
         secure: true,
-        sameSite: 'Lax',
-        path: '/'
+        sameSite: 'None',
+        path: '/',
+        domain: window.location.hostname
       });
       
       setUser(userData);
+      toast.success('Login berhasil');
       return userData;
     } catch (error) {
       console.error('Login error:', error);
@@ -108,12 +122,32 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const register = async (username, password) => {
+    try {
+      const response = await api.post('/api/register', { username, password });
+      
+      if (response.status === 201) {
+        toast.success('Registrasi berhasil, silakan login');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      if (error.response?.status === 409) {
+        toast.error('Nama pengguna sudah digunakan');
+      } else {
+        toast.error('Gagal mendaftar. Silakan coba lagi.');
+      }
+      console.error('Register error:', error);
+      throw error;
+    }
+  };
+
   useEffect(() => {
     checkAuth();
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, api }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, register, api }}>
       {children}
     </AuthContext.Provider>
   );
