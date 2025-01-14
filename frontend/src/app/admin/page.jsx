@@ -20,68 +20,86 @@ export default function AdminDashboard() {
   const [products, setProducts] = useState([]);
   const [newUser, setNewUser] = useState({ username: '', password: '', is_admin: false });
   const [editingUser, setEditingUser] = useState(null);
-  const { api } = useAuth();
+  const { user, api, logout } = useAuth();
+  const router = useRouter();
 
+  // Check if user is admin
   useEffect(() => {
-    fetchUsers();
-    fetchProducts();
-  }, []);
-
-  const fetchUsers = async () => {
-    try {
-      const response = await api.get('/api/users');
-      setUsers(response.data.users);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-      toast.error('Gagal mengambil data pengguna');
+    if (!user?.is_admin) {
+      router.push('/dashboard');
+      return;
     }
-  };
+    fetchData();
+  }, [user, router]);
 
-  const fetchProducts = async () => {
+  const fetchData = async () => {
     try {
-      const response = await api.get('/api/products');
-      setProducts(response.data.products);
+      const [usersRes, productsRes] = await Promise.all([
+        api.get('/api/users'),
+        api.get('/api/products')
+      ]);
+      setUsers(usersRes.data.users || []);
+      setProducts(productsRes.data.products || []);
     } catch (error) {
-      console.error('Error fetching products:', error);
-      toast.error('Gagal mengambil data produk');
+      console.error('Error fetching data:', error);
+      toast.error('Gagal mengambil data');
     }
   };
 
   const handleAddUser = async (e) => {
     e.preventDefault();
+    if (!newUser.username.trim() || !newUser.password) {
+      toast.error('Username dan password harus diisi');
+      return;
+    }
+
     try {
       await api.post('/api/users', newUser);
       setNewUser({ username: '', password: '', is_admin: false });
       toast.success('Pengguna berhasil ditambahkan');
-      fetchUsers(); // Refresh user list
+      fetchData(); // Refresh data
     } catch (error) {
       console.error('Error adding user:', error);
-      toast.error('Gagal menambahkan pengguna');
+      toast.error(error.response?.data?.message || 'Gagal menambahkan pengguna');
     }
   };
 
   const handleUpdateUser = async (userId, updatedData) => {
+    if (!updatedData.username.trim()) {
+      toast.error('Username tidak boleh kosong');
+      return;
+    }
+
     try {
       await api.put(`/api/users/${userId}`, updatedData);
       toast.success('Pengguna berhasil diperbarui');
-      fetchUsers(); // Refresh user list
+      fetchData(); // Refresh data
       setEditingUser(null);
     } catch (error) {
       console.error('Error updating user:', error);
-      toast.error('Gagal memperbarui pengguna');
+      toast.error(error.response?.data?.message || 'Gagal memperbarui pengguna');
     }
   };
 
   const handleDeleteUser = async (userId) => {
+    // Prevent deleting the last admin
+    const isLastAdmin = users.filter(u => u.is_admin).length === 1 && 
+                       users.find(u => u.id === userId)?.is_admin;
+    
+    if (isLastAdmin) {
+      toast.error('Tidak dapat menghapus admin terakhir');
+      return;
+    }
+
     if (!window.confirm('Apakah Anda yakin ingin menghapus pengguna ini?')) return;
     
     try {
       await api.delete(`/api/users/${userId}`);
       toast.success('Pengguna berhasil dihapus');
-      fetchUsers(); // Refresh user list
+      fetchData(); // Refresh data
     } catch (error) {
       console.error('Error deleting user:', error);
-      toast.error('Gagal menghapus pengguna');
+      toast.error(error.response?.data?.message || 'Gagal menghapus pengguna');
     }
   };
 
@@ -91,39 +109,55 @@ export default function AdminDashboard() {
     try {
       await api.delete(`/api/products/${productId}`);
       toast.success('Produk berhasil dihapus');
-      fetchProducts(); // Refresh product list
+      fetchData(); // Refresh data
     } catch (error) {
       console.error('Error deleting product:', error);
-      toast.error('Gagal menghapus produk');
+      toast.error(error.response?.data?.message || 'Gagal menghapus produk');
     }
   };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.push('/');
+    } catch (error) {
+      console.error('Error logging out:', error);
+      toast.error('Gagal keluar. Silakan coba lagi.');
+    }
+  };
+
+  // Show loading state while checking authentication
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-800"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation Bar */}
       <nav className="bg-white shadow-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-3">
-          <div className="flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
+          <div className="flex justify-between items-center">
             <div className="flex items-center space-x-3">
               <div className="bg-gradient-to-r from-gray-700 to-gray-800 p-2 rounded-lg">
                 <FaCashRegister className="w-6 h-6 text-white" />
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-800">KasirKuy Admin</h1>
+              <h1 className="text-xl font-bold text-gray-800">KasirKuy Admin</h1>
             </div>
-            <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4">
+            <div className="flex items-center space-x-4">
               <button
                 onClick={() => router.push('/dashboard')}
-                className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 w-full sm:w-auto justify-center"
+                className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
               >
                 <FaArrowLeft className="w-4 h-4 mr-2" />
                 Kembali ke Dashboard
               </button>
               <button
-                onClick={() => {
-                  logout();
-                  router.push('/');
-                }}
-                className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 w-full sm:w-auto justify-center"
+                onClick={handleLogout}
+                className="flex items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
               >
                 <FaSignOutAlt className="w-4 h-4 mr-2" />
                 Keluar
@@ -167,23 +201,25 @@ export default function AdminDashboard() {
             
             {/* Add User Form */}
             <form onSubmit={handleAddUser} className="mb-6 space-y-4">
-              <input
-                type="text"
-                placeholder="Nama Pengguna"
-                value={newUser.username}
-                onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
-                required
-              />
-              <input
-                type="password"
-                placeholder="Kata Sandi"
-                value={newUser.password}
-                onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
-                required
-              />
-              <div className="flex items-center space-x-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input
+                  type="text"
+                  placeholder="Nama Pengguna"
+                  value={newUser.username}
+                  onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
+                  required
+                />
+                <input
+                  type="password"
+                  placeholder="Kata Sandi"
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-gray-400 focus:border-gray-400 text-gray-900"
+                  required
+                />
+              </div>
+              <div className="flex items-center justify-between">
                 <label className="flex items-center space-x-2">
                   <input
                     type="checkbox"
@@ -195,7 +231,7 @@ export default function AdminDashboard() {
                 </label>
                 <button
                   type="submit"
-                  className="flex-1 flex items-center justify-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900"
+                  className="flex items-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900"
                 >
                   <FaPlus className="w-4 h-4 mr-2" />
                   Tambah

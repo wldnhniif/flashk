@@ -153,6 +153,7 @@ export default function Dashboard() {
     }
 
     try {
+      // Create transaction first
       const response = await api.post('/api/transactions', {
         items: cart.map(item => ({
           product_id: item.id,
@@ -161,14 +162,8 @@ export default function Dashboard() {
         }))
       });
 
-      // Create receipt window with proper error handling
-      const receiptWindow = window.open('', '_blank', 'width=400,height=600');
-      if (!receiptWindow) {
-        toast.error('Pop-up diblokir. Mohon izinkan pop-up untuk mencetak struk.');
-        return;
-      }
-
-      // Get current date and time in Indonesian format
+      // Format the transaction data
+      const transaction = response.data.transaction;
       const currentDate = new Date().toLocaleDateString('id-ID', {
         weekday: 'long',
         year: 'numeric',
@@ -178,7 +173,14 @@ export default function Dashboard() {
         minute: '2-digit'
       });
 
-      // Write receipt HTML with improved styling
+      // Create receipt window
+      const receiptWindow = window.open('', '_blank', 'width=400,height=600');
+      if (!receiptWindow) {
+        toast.error('Pop-up diblokir. Mohon izinkan pop-up untuk mencetak struk.');
+        return;
+      }
+
+      // Write receipt content
       receiptWindow.document.write(`
         <!DOCTYPE html>
         <html>
@@ -186,30 +188,20 @@ export default function Dashboard() {
           <title>Struk Pembayaran - KasirKuy</title>
           <meta charset="UTF-8">
           <style>
-            @media print {
-              body {
-                width: 80mm;
-                margin: 0;
-                padding: 5mm;
-                font-family: 'Courier New', monospace;
-                font-size: 12px;
-                line-height: 1.5;
-              }
-              .no-print {
-                display: none !important;
-              }
+            @page {
+              size: 80mm auto;
+              margin: 0;
             }
             body {
               font-family: 'Courier New', monospace;
-              padding: 20px;
-              max-width: 80mm;
-              margin: 0 auto;
+              margin: 0;
+              padding: 10mm;
               font-size: 12px;
               line-height: 1.5;
             }
             .header {
               text-align: center;
-              margin-bottom: 20px;
+              margin-bottom: 10px;
             }
             .header h1 {
               font-size: 18px;
@@ -244,37 +236,41 @@ export default function Dashboard() {
               margin-top: 20px;
               font-size: 10px;
             }
-            .print-button {
-              position: fixed;
-              top: 20px;
-              right: 20px;
-              padding: 10px 20px;
-              background: #1a1a1a;
-              color: white;
-              border: none;
-              border-radius: 5px;
-              cursor: pointer;
-              font-size: 14px;
-            }
             @media screen {
               body {
-                background: #fff;
+                width: 80mm;
+                margin: 0 auto;
                 box-shadow: 0 0 10px rgba(0,0,0,0.1);
-                margin: 20px auto;
-                padding: 20px;
+              }
+              .print-button {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 10px 20px;
+                background: #1a1a1a;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+              }
+            }
+            @media print {
+              .print-button {
+                display: none;
               }
             }
           </style>
         </head>
         <body>
-          <button onclick="window.print()" class="print-button no-print">
+          <button onclick="window.print()" class="print-button">
             Cetak Struk
           </button>
+
           <div class="header">
             <h1>KasirKuy</h1>
             <p>Struk Pembayaran</p>
             <p>${currentDate}</p>
-            <p>No. Transaksi: ${response.data.transaction.id}</p>
+            <p>No. Transaksi: ${transaction.id}</p>
             <p>Kasir: ${user?.username || 'Admin'}</p>
           </div>
           
@@ -307,10 +303,11 @@ export default function Dashboard() {
           </div>
 
           <script>
-            // Auto print when loaded
+            // Print automatically when loaded
             window.onload = function() {
               window.print();
             };
+
             // Close window after printing
             window.onafterprint = function() {
               window.close();
@@ -326,9 +323,12 @@ export default function Dashboard() {
       // Clear cart and show success message
       setCart([]);
       toast.success('Transaksi berhasil');
+
+      // Refresh products to update stock
+      fetchProducts();
     } catch (error) {
       console.error('Error processing transaction:', error);
-      toast.error('Gagal memproses transaksi. Silakan coba lagi.');
+      toast.error(error.response?.data?.message || 'Gagal memproses transaksi. Silakan coba lagi.');
     }
   };
 
