@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
-import { FaCashRegister, FaSignOutAlt, FaPlus, FaShoppingCart, FaPrint, FaImage, FaEdit, FaTrash, FaBox, FaSpinner, FaTimes } from 'react-icons/fa';
+import { FaCashRegister, FaSignOutAlt, FaPlus, FaShoppingCart, FaPrint, FaImage, FaEdit, FaTrash, FaBox, FaSpinner, FaTimes, FaUserCog, FaMinus } from 'react-icons/fa';
 import axios from 'axios';
 
 const formatToRupiah = (number) => {
@@ -18,11 +18,10 @@ const formatToRupiah = (number) => {
 
 export default function Dashboard() {
   const [products, setProducts] = useState([]);
-  const [cart, setCart] = useState([]);
+  const [cartItems, setCartItems] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [showCart, setShowCart] = useState(false);
   const { user, logout, api, loading } = useAuth();
   const router = useRouter();
 
@@ -33,11 +32,40 @@ export default function Dashboard() {
     }
   }, [user, loading, router]);
 
+  // Fetch products when user is authenticated
   useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        console.log('Fetching products...', {
+          user: user?.id,
+          headers: api.defaults.headers
+        });
+        
+        const response = await api.get('/api/products');
+        console.log('Products response:', response.data);
+        
+        setProducts(response.data.products || []);
+      } catch (error) {
+        console.error('Error fetching products:', {
+          status: error.response?.status,
+          data: error.response?.data,
+          headers: error.config?.headers,
+          message: error.message
+        });
+        
+        if (error.response?.status === 401) {
+          toast.error('Session expired. Please login again.');
+          logout();
+        } else {
+          toast.error('Failed to fetch products. Please try again.');
+        }
+      }
+    };
+
     if (user) {
       fetchProducts();
     }
-  }, [user]);
+  }, [user, api, logout]);
 
   // Show loading state while checking authentication
   if (loading || !user) {
@@ -58,30 +86,33 @@ export default function Dashboard() {
     }
   };
 
-  const fetchProducts = async () => {
-    try {
-      const response = await api.get('/api/products');
-      setProducts(response.data.products);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      toast.error('Gagal mengambil produk');
-    }
-  };
-
   const handleAddProduct = async (formData) => {
     setIsSubmitting(true);
     try {
+      console.log('Adding product with data:', {
+        name: formData.get('name'),
+        price: formData.get('price'),
+        hasImage: formData.get('image') !== null
+      });
+      
       const response = await api.post('/api/products', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
+      
+      console.log('Product added response:', response.data);
+      
+      if (!response.data || !response.data.product) {
+        throw new Error('Invalid response from server');
+      }
+      
       setProducts([...products, response.data.product]);
       toast.success('Produk berhasil ditambahkan');
       setShowModal(false);
     } catch (error) {
-      console.error('Error adding product:', error);
-      toast.error('Gagal menambahkan produk');
+      console.error('Error adding product:', error.response || error);
+      toast.error(error.response?.data?.message || 'Gagal menambahkan produk');
     } finally {
       setIsSubmitting(false);
     }
@@ -92,43 +123,34 @@ export default function Dashboard() {
     
     setIsSubmitting(true);
     try {
-      const productId = editingProduct.id;
+      console.log('Editing product with data:', {
+        id: editingProduct.id,
+        name: formData.get('name'),
+        price: formData.get('price'),
+        hasImage: formData.get('image') !== null
+      });
       
-      // Create FormData with all fields
-      const data = new FormData();
-      const name = formData.get('name') || editingProduct.name;
-      const price = formData.get('price') || editingProduct.price;
-      
-      data.append('name', name.trim());
-      data.append('price', price);
-      
-      // Only append image if a new one is selected
-      const image = formData.get('image');
-      if (image && image.size > 0) {
-        data.append('image', image);
-      }
-
-      // Use PATCH instead of PUT
-      const response = await api.patch(`/api/products/${productId}`, data, {
+      const response = await api.patch(`/api/products/${editingProduct.id}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
 
+      console.log('Product edited response:', response.data);
+      
       if (!response.data || !response.data.product) {
         throw new Error('Invalid response from server');
       }
 
-      // Update the products list with the updated product
-      setProducts(products.map(p => p.id === productId ? response.data.product : p));
+      setProducts(products.map(p => 
+        p.id === editingProduct.id ? response.data.product : p
+      ));
+      
       toast.success('Produk berhasil diperbarui');
       setShowModal(false);
       setEditingProduct(null);
-      
-      // Refresh the products list
-      await fetchProducts();
     } catch (error) {
-      console.error('Error updating product:', error);
+      console.error('Error editing product:', error.response || error);
       toast.error(error.response?.data?.message || 'Gagal memperbarui produk');
     } finally {
       setIsSubmitting(false);
@@ -163,23 +185,23 @@ export default function Dashboard() {
 
   const updateCartItemQuantity = (productId, newQuantity) => {
     if (newQuantity < 1) return;
-    setCart(cart.map(item => 
+    setCartItems(cartItems.map(item => 
       item.id === productId ? { ...item, quantity: newQuantity } : item
     ));
   };
 
   const addToCart = (product) => {
-    const existingItem = cart.find(item => item.id === product.id);
+    const existingItem = cartItems.find(item => item.id === product.id);
     if (existingItem) {
       updateCartItemQuantity(product.id, existingItem.quantity + 1);
     } else {
-      setCart([...cart, { ...product, quantity: 1 }]);
+      setCartItems([...cartItems, { ...product, quantity: 1 }]);
     }
     toast.success('Produk ditambahkan ke keranjang');
   };
 
   const handlePrint = async () => {
-    if (cart.length === 0) {
+    if (cartItems.length === 0) {
       toast.error('Keranjang belanja kosong');
       return;
     }
@@ -190,7 +212,7 @@ export default function Dashboard() {
 
       // Generate receipt PDF using backend API
       const response = await api.post('/api/generate-receipt', {
-        items: cart.map(item => ({
+        items: cartItems.map(item => ({
           name: item.name,
           quantity: item.quantity,
           price: item.price
@@ -206,19 +228,16 @@ export default function Dashboard() {
       window.open(response.data.pdf_url, '_blank');
       
       // Clear cart and show success message
-      setCart([]);
-      toast.success('Transaksi berhasil');
-
-      // Refresh products to update stock
-      fetchProducts();
+      setCartItems([]);
+      toast.success('Struk berhasil dicetak');
     } catch (error) {
-      console.error('Error processing transaction:', error.response || error);
-      toast.error(error.response?.data?.message || 'Gagal memproses transaksi. Silakan coba lagi.');
+      console.error('Error generating receipt:', error.response || error);
+      toast.error('Gagal mencetak struk. Silakan coba lagi.');
     }
   };
 
   const calculateTotal = () => {
-    return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+    return cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
   };
 
   // Product Card Component
@@ -227,7 +246,7 @@ export default function Dashboard() {
       <div className="relative w-full pb-[100%]">
         {product.image_url ? (
           <img
-            src={`${process.env.NEXT_PUBLIC_API_URL}${product.image_url}?t=${new Date().getTime()}`}
+            src={`${process.env.NEXT_PUBLIC_API_URL}/api/uploads/${product.image_url}`}
             alt={product.name}
             className="absolute top-0 left-0 w-full h-full object-cover"
             onError={(e) => {
@@ -285,7 +304,7 @@ export default function Dashboard() {
       if (editingProduct) {
         setName(editingProduct.name);
         setPrice(editingProduct.price.toString());
-        setPreviewUrl(editingProduct.image_url ? `${process.env.NEXT_PUBLIC_API_URL}${editingProduct.image_url}?t=${new Date().getTime()}` : '');
+        setPreviewUrl(editingProduct.image_url ? `${process.env.NEXT_PUBLIC_API_URL}/api/uploads/${editingProduct.image_url}?t=${new Date().getTime()}` : '');
         setImage(null); // Reset image when editing
       } else {
         setName('');
@@ -450,165 +469,217 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Navigation Bar */}
-      <nav className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
-            <div className="flex items-center space-x-3">
-              <div className="bg-gradient-to-r from-gray-700 to-gray-800 p-2 rounded-lg">
-                <FaCashRegister className="w-6 h-6 text-white" />
-              </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-800">KasirKuy</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600 hidden sm:inline">
-                Halo, {user?.username}
-              </span>
-              {user?.is_admin && (
-                <button
-                  onClick={() => router.push('/admin')}
-                  className="flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
-                >
-                  Panel Admin
-                </button>
-              )}
+    <div className="flex flex-col h-screen bg-gray-50">
+      {/* Header */}
+      <header className="sticky top-0 z-20 bg-blue-600 text-white">
+        <div className="flex items-center justify-between h-16 px-4">
+          <div className="flex items-center">
+            <FaCashRegister className="w-8 h-8" />
+            <span className="ml-3 text-xl font-bold">KasirKuy</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {user?.is_admin && (
               <button
-                onClick={handleLogout}
-                className="flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
+                onClick={() => router.push('/admin')}
+                className="flex items-center px-3 py-2 text-sm bg-blue-700 rounded-lg hover:bg-blue-800"
               >
-                <FaSignOutAlt className="w-4 h-4 mr-2" />
-                Keluar
+                <FaUserCog className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">Admin Panel</span>
               </button>
-            </div>
+            )}
+            <button
+              onClick={logout}
+              className="flex items-center px-3 py-2 text-sm bg-red-600 rounded-lg hover:bg-red-700"
+            >
+              <FaSignOutAlt className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Keluar</span>
+            </button>
           </div>
         </div>
-      </nav>
+      </header>
 
-      <div className="container mx-auto px-4 py-8 pb-32 lg:pb-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Products Section */}
-          <div className="lg:col-span-2">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
-              <h2 className="text-xl font-semibold text-gray-800">Produk</h2>
-              <button
-                onClick={() => {
-                  setEditingProduct(null);
-                  setShowModal(true);
-                }}
-                className="flex items-center px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 w-full sm:w-auto justify-center"
-              >
-                <FaPlus className="w-4 h-4 mr-2" />
-                Tambah Produk
-              </button>
-            </div>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="p-4 space-y-4">
+            {/* Cart Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Product List - Takes 2 columns on large screens */}
+              <div className="lg:col-span-2 bg-white rounded-xl shadow-sm overflow-hidden">
+                <div className="p-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                    <h2 className="text-lg font-bold text-gray-800">Produk</h2>
+                    <button
+                      onClick={() => {
+                        setEditingProduct(null);
+                        setShowModal(true);
+                      }}
+                      className="flex items-center px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 w-full sm:w-auto justify-center"
+                    >
+                      <FaPlus className="w-4 h-4 mr-2" />
+                      Tambah Produk
+                    </button>
+                  </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-              {products.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  onEdit={(product) => {
-                    setEditingProduct(product);
-                    setShowModal(true);
-                  }}
-                  onDelete={handleDeleteProduct}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Cart Section - Hidden by default on mobile, shown when cart button is clicked */}
-          <div className={`fixed inset-0 bg-black bg-opacity-50 transition-opacity lg:relative lg:bg-transparent lg:block ${showCart ? 'opacity-100' : 'opacity-0 pointer-events-none lg:opacity-100 lg:pointer-events-auto'}`}>
-            <div className={`fixed bottom-0 left-0 right-0 bg-white transform transition-transform lg:static lg:transform-none ${showCart ? 'translate-y-0' : 'translate-y-full lg:translate-y-0'}`}>
-              {/* Cart Header with close button on mobile */}
-              <div className="flex justify-between items-center p-4 border-b border-gray-200 lg:border-none sticky top-0 bg-white">
-                <div className="flex items-center space-x-2">
-                  <h2 className="text-lg font-semibold text-gray-800">Keranjang</h2>
-                  <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-sm">
-                    {cart.length} item
-                  </span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={handlePrint}
-                    disabled={cart.length === 0}
-                    className="flex items-center px-3 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                  >
-                    <FaPrint className="w-4 h-4 mr-2" />
-                    Cetak Struk
-                  </button>
-                  <button
-                    onClick={() => setShowCart(false)}
-                    className="lg:hidden text-gray-500 hover:text-gray-700"
-                  >
-                    <FaTimes className="w-6 h-6" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Cart Items */}
-              <div className="p-4 max-h-[60vh] lg:max-h-[calc(100vh-24rem)] overflow-y-auto">
-                {cart.length > 0 ? (
-                  <div className="space-y-3">
-                    {cart.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-gray-800 truncate">{item.name}</h3>
-                          <p className="text-sm text-gray-600">{formatToRupiah(item.price)} × {item.quantity}</p>
+                  {/* Product Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {products.map((product) => (
+                      <div
+                        key={product.id}
+                        className="bg-white border rounded-lg overflow-hidden hover:shadow-md transition-shadow"
+                      >
+                        <div className="aspect-square relative">
+                          {product.image_url ? (
+                            <img
+                              src={`${process.env.NEXT_PUBLIC_API_URL}/api/uploads/${product.image_url}`}
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.src = '/placeholder.png';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                              <img 
+                                src="/placeholder.png"
+                                alt="placeholder"
+                                className="w-8 h-8 text-gray-400"
+                              />
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center space-x-3 ml-4">
-                          <button
-                            onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)}
-                            className="p-1 text-gray-600 hover:text-gray-800 text-lg"
-                          >
-                            -
-                          </button>
-                          <span className="w-8 text-center">{item.quantity}</span>
-                          <button
-                            onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)}
-                            className="p-1 text-gray-600 hover:text-gray-800 text-lg"
-                          >
-                            +
-                          </button>
+                        <div className="p-3">
+                          <h3 className="font-medium text-gray-900 truncate">{product.name}</h3>
+                          <p className="text-gray-600 text-sm mt-1">{formatToRupiah(product.price)}</p>
+                          <div className="flex justify-between items-center mt-2">
+                            <button
+                              onClick={() => addToCart(product)}
+                              className="flex-1 mr-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                            >
+                              + Keranjang
+                            </button>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => {
+                                  setEditingProduct(product);
+                                  setShowModal(true);
+                                }}
+                                className="p-1.5 text-gray-600 hover:text-blue-600 rounded"
+                              >
+                                <FaEdit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteProduct(product.id)}
+                                className="p-1.5 text-red-600 hover:text-red-800 rounded"
+                              >
+                                <FaTrash className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <div className="text-center text-gray-500 py-6">
-                    Keranjang kosong
-                  </div>
-                )}
+                </div>
               </div>
 
-              {/* Cart Total */}
-              {cart.length > 0 && (
-                <div className="p-4 border-t border-gray-200 bg-white sticky bottom-0">
-                  <div className="flex justify-between items-center text-lg font-semibold text-gray-800">
-                    <span>Total</span>
-                    <span>{formatToRupiah(calculateTotal())}</span>
+              {/* Cart - Takes 1 column and sticks to the right on large screens */}
+              <div className="lg:col-span-1">
+                <div className="bg-white rounded-xl shadow-sm sticky top-20">
+                  <div className="p-4">
+                    <h2 className="text-lg font-bold text-gray-800 mb-4">Keranjang</h2>
+                    <div className="space-y-4">
+                      {cartItems.length === 0 ? (
+                        <p className="text-gray-500 text-center py-4">Keranjang kosong</p>
+                      ) : (
+                        <>
+                          {/* Cart Items */}
+                          <div className="space-y-3 max-h-[calc(100vh-20rem)] overflow-y-auto">
+                            {cartItems.map((item) => (
+                              <div key={item.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                                <div className="w-12 h-12 relative rounded overflow-hidden flex-shrink-0">
+                                  {item.image_url ? (
+                                    <img
+                                      src={`${process.env.NEXT_PUBLIC_API_URL}/api/uploads/${item.image_url}`}
+                                      alt={item.name}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        e.target.src = '/placeholder.png';
+                                      }}
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                                      <img 
+                                        src="/placeholder.png"
+                                        alt="placeholder"
+                                        className="w-5 h-5 text-gray-400"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="text-sm font-medium text-gray-900 truncate">{item.name}</h3>
+                                  <p className="text-sm text-gray-600">{formatToRupiah(item.price)}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)}
+                                    className="p-1 text-gray-600 hover:text-red-600"
+                                    disabled={item.quantity <= 1}
+                                  >
+                                    <FaMinus className="w-3 h-3" />
+                                  </button>
+                                  <span className="text-sm font-medium w-8 text-center">{item.quantity}</span>
+                                  <button
+                                    onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)}
+                                    className="p-1 text-gray-600 hover:text-green-600"
+                                  >
+                                    <FaPlus className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteProduct(item.id)}
+                                    className="p-1 text-red-600 hover:text-red-800"
+                                  >
+                                    <FaTrash className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Cart Summary */}
+                          <div className="border-t pt-4">
+                            <div className="flex justify-between items-center mb-4">
+                              <span className="text-gray-600">Total:</span>
+                              <span className="text-lg font-bold text-gray-900">{formatToRupiah(calculateTotal())}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                onClick={() => setCartItems([])}
+                                className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                              >
+                                <FaTrash className="w-4 h-4 mr-2" />
+                                Kosongkan
+                              </button>
+                              <button
+                                onClick={handlePrint}
+                                className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                disabled={cartItems.length === 0}
+                              >
+                                <FaPrint className="w-4 h-4 mr-2" />
+                                Cetak Struk
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           </div>
-
-          {/* Floating Cart Button - Only visible on mobile when cart is hidden */}
-          <button
-            onClick={() => setShowCart(true)}
-            className={`fixed bottom-4 right-4 z-20 lg:hidden bg-gray-800 text-white p-4 rounded-full shadow-lg ${showCart ? 'hidden' : ''}`}
-          >
-            <div className="relative">
-              <FaShoppingCart className="w-6 h-6" />
-              {cart.length > 0 && (
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                  {cart.length}
-                </span>
-              )}
-            </div>
-          </button>
-        </div>
+        </main>
       </div>
 
       {/* Product Modal */}

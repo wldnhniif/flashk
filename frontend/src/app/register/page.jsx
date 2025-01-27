@@ -3,24 +3,29 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { FaCashRegister, FaUser, FaLock } from 'react-icons/fa';
-import Image from 'next/image';
+import { FaCashRegister, FaUser, FaLock, FaArrowLeft } from 'react-icons/fa';
+import { toast } from 'react-hot-toast';
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { register } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!username.trim() || !password) {
+      toast.error('Username dan password harus diisi');
+      return;
+    }
     setIsLoading(true);
     try {
-      await login(username, password);
+      await register(username, password);
       router.push('/dashboard');
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('Register error:', error);
+      toast.error(error.response?.data?.message || 'Gagal mendaftar');
     } finally {
       setIsLoading(false);
     }
@@ -37,8 +42,8 @@ export default function LoginPage() {
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-600 text-white mb-4 shadow-lg">
                 <FaCashRegister className="w-8 h-8" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">Selamat Datang di KasirKuy</h1>
-              <p className="text-gray-600">Silakan masuk untuk melanjutkan</p>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">Buat Akun KasirKuy</h1>
+              <p className="text-gray-600">Daftar untuk memulai</p>
             </div>
           </div>
 
@@ -59,7 +64,7 @@ export default function LoginPage() {
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       className="block w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow duration-200"
-                      placeholder="Masukkan nama pengguna"
+                      placeholder="Pilih nama pengguna"
                       required
                     />
                   </div>
@@ -78,7 +83,7 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="block w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow duration-200"
-                      placeholder="Masukkan kata sandi"
+                      placeholder="Buat kata sandi"
                       required
                     />
                   </div>
@@ -93,20 +98,18 @@ export default function LoginPage() {
                 {isLoading ? (
                   <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
-                  'Masuk'
+                  'Daftar'
                 )}
               </button>
 
               <div className="text-center">
-                <p className="text-sm text-gray-600">
-                  Belum punya akun?{' '}
-                  <button
-                    onClick={() => router.push('/register')}
-                    className="font-medium text-blue-600 hover:text-blue-500 focus:outline-none focus:underline transition-colors duration-200"
-                  >
-                    Daftar
-                  </button>
-                </p>
+                <button
+                  onClick={() => router.push('/')}
+                  className="inline-flex items-center text-sm text-gray-600 hover:text-blue-600 focus:outline-none focus:underline transition-colors duration-200"
+                >
+                  <FaArrowLeft className="w-4 h-4 mr-2" />
+                  Kembali ke halaman masuk
+                </button>
               </div>
             </form>
           </div>
@@ -122,7 +125,7 @@ export default function LoginPage() {
               rel="noopener noreferrer"
               className="font-medium hover:text-blue-600 transition-colors duration-200"
             >
-              tim kami
+              Wildan Hanif
             </a>
           </p>
         </div>

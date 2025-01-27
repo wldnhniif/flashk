@@ -14,13 +14,42 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="id" className="h-full">
-      <body className={`${inter.className} min-h-full antialiased`}>
+    <html lang="id" className="scroll-smooth">
+      <body className={`${inter.className} antialiased bg-gray-50`}>
         <AuthProvider>
-          <main className="flex flex-col min-h-screen">
+          <main className="min-h-screen">
             {children}
           </main>
-          <Toaster position="top-right" />
+          <Toaster 
+            position="top-right"
+            toastOptions={{
+              className: 'shadow-lg',
+              duration: 3000,
+              style: {
+                borderRadius: '10px',
+                background: '#333',
+                color: '#fff',
+              },
+              success: {
+                style: {
+                  background: '#10B981',
+                },
+                iconTheme: {
+                  primary: 'white',
+                  secondary: '#10B981',
+                },
+              },
+              error: {
+                style: {
+                  background: '#EF4444',
+                },
+                iconTheme: {
+                  primary: 'white',
+                  secondary: '#EF4444',
+                },
+              },
+            }}
+          />
           <SpeedInsights />
         </AuthProvider>
       </body>
